@@ -129,4 +129,145 @@ Copyright © 2024 MedAtlas. All rights reserved.
 
 ## 📞 Support
 
-For support, email support@medatlas.com or join our Slack channel. 
+For support, email support@medatlas.com or join our Slack channel.
+
+# MedAtlas Dashboard
+
+A modern medical document processing dashboard built with Vue 3 and TypeScript.
+
+## Features
+
+### Check-In System
+- Interactive check-in card with animated barcode
+- Two-step scanning process (Employee Badge → Shipment Barcode)
+- Visual feedback with glowing border animation
+- Test mode support with sample IDs
+
+### Real-Time Status Cards
+
+#### Total Active Jobs
+- Live count of jobs currently in the system
+- Visual indicator showing system capacity
+- Updates automatically when jobs are added or completed
+
+#### Average Processing Time
+- Calculates mean time from job start to completion
+- Clock-style icon with real-time updates
+- Helps identify processing bottlenecks
+
+#### Completed Jobs Today
+- Daily completion counter
+- Green status indicator for completed work
+- Resets at midnight local time
+
+#### Queue Status System
+The queue status dynamically changes based on several factors:
+
+1. **Optimal** (Green)
+   - No delayed jobs
+   - Less than 5 total jobs
+   - All processes running smoothly
+   - Indicated by balanced status bars
+
+2. **Busy** (Sky Blue)
+   - No delayed jobs
+   - 5 or more total jobs
+   - System at high capacity but maintaining pace
+   - Indicated by full utilization bars
+
+3. **Delayed** (Yellow)
+   - Less than 30% of jobs delayed
+   - Some jobs exceeding time thresholds
+   - Warning state indicating attention needed
+   - Indicated by reduced capacity bars
+
+4. **Backlogged** (Red)
+   - More than 30% of jobs delayed
+   - System under stress
+   - Immediate attention required
+   - Indicated by minimal capacity bars
+
+### Job Management
+- Grid view of active jobs
+- Progress tracking across multiple stages:
+  - PREP
+  - SCAN
+  - QC
+  - INDEX
+  - REPREP
+- Color-coded status indicators
+- Operator assignment tracking
+- Time-based alerts for delays
+
+### Visual Indicators
+- Color-coded status badges
+- Progress bars for each processing stage
+- Time-based border colors
+- Hover effects for interactive elements
+- Animated transitions
+
+## Technical Details
+
+### Queue Status Calculation
+```typescript
+const queueStatus = computed(() => {
+  // Count jobs with delays (>2 hours)
+  const delayedJobs = currentJobs.value.filter(job => {
+    const stepData = job.steps[job.currentStep]
+    if (!stepData.lastUpdated) return false
+    
+    const now = new Date()
+    const lastUpdated = new Date(stepData.lastUpdated)
+    const hoursElapsed = (now.getTime() - lastUpdated.getTime()) / (1000 * 60 * 60)
+    
+    return hoursElapsed > 2
+  })
+
+  // Calculate health metrics
+  const totalJobs = currentJobs.value.length
+  const delayedCount = delayedJobs.length
+  const delayRatio = delayedCount / (totalJobs || 1)
+
+  // Determine status
+  if (delayRatio === 0 && totalJobs < 5) return { text: 'Optimal', color: 'green' }
+  if (delayRatio === 0) return { text: 'Busy', color: 'sky' }
+  if (delayRatio < 0.3) return { text: 'Delayed', color: 'yellow' }
+  return { text: 'Backlogged', color: 'red' }
+})
+```
+
+### Time Calculations
+- Jobs are considered delayed after 2 hours without updates
+- Status updates occur in real-time
+- Time displays use local timezone
+- Elapsed time shown in hours and minutes
+
+## Development
+
+### Prerequisites
+- Node.js 16+
+- Vue 3
+- TypeScript
+- Tailwind CSS
+
+### Setup
+1. Clone the repository
+2. Install dependencies: `npm install`
+3. Start development server: `npm run dev`
+
+### Building
+```bash
+npm run build
+```
+
+### Testing
+```bash
+npm run test
+```
+
+## Contributing
+1. Fork the repository
+2. Create your feature branch
+3. Commit your changes
+4. Push to the branch
+5. Create a Pull Request 
