@@ -1,31 +1,179 @@
-const Database = require('better-sqlite3')
-const path = require('path')
-const { app } = require('electron')
-const bcrypt = require('bcryptjs')
+import sqlite3 from 'sqlite3';
+import { open } from 'sqlite';
+import path from 'path';
 
-class DatabaseService {
-  constructor() {
-    const dbPath = path.join(app.getPath('userData'), 'medatlas.db')
-    this.db = new Database(dbPath)
-    this.db.pragma('foreign_keys = ON')
+export class DatabaseService {
+  constructor(dbPath = 'medatlas.db') {
+    this.dbPath = dbPath;
+    this.dbPromise = this.initializeDatabase();
+  }
+
+  async initializeDatabase() {
+    return open({
+      filename: this.dbPath,
+      driver: sqlite3.Database
+    });
+  }
+
+  async getDb() {
+    return await this.dbPromise;
+  }
+
+  async initializeSchema() {
+    const db = await this.getDb();
+    
+    await db.exec(`
+      CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        email TEXT UNIQUE NOT NULL,
+        password TEXT NOT NULL,
+        role TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'active',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        last_login DATETIME
+      );
+      
+      CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+      
+      CREATE TABLE IF NOT EXISTS clients (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        contact_name TEXT,
+        email TEXT,
+        phone TEXT,
+        status TEXT NOT NULL DEFAULT 'active',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+      
+      CREATE TABLE IF NOT EXISTS projects (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        client_id INTEGER NOT NULL,
+        name TEXT NOT NULL,
+        description TEXT,
+        status TEXT NOT NULL DEFAULT 'active',
+        sla_hours INTEGER,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (client_id) REFERENCES clients(id)
+      );
+      
+      CREATE INDEX IF NOT EXISTS idx_projects_client ON projects(client_id);
+      
+      CREATE TABLE IF NOT EXISTS shipments (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        project_id INTEGER NOT NULL,
+        tracking_number TEXT,
+        status TEXT NOT NULL DEFAULT 'pending',
+        box_count INTEGER DEFAULT 0,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (project_id) REFERENCES projects(id)
+      );
+      
+      CREATE INDEX IF NOT EXISTS idx_shipments_project ON shipments(project_id);
+      CREATE INDEX IF NOT EXISTS idx_shipments_tracking ON shipments(tracking_number);
+      
+      CREATE TABLE IF NOT EXISTS jobs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        shipment_id INTEGER NOT NULL,
+        operator_id INTEGER NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending',
+        current_step TEXT,
+        started_at DATETIME,
+        completed_at DATETIME,
+        FOREIGN KEY (shipment_id) REFERENCES shipments(id),
+        FOREIGN KEY (operator_id) REFERENCES users(id)
+      );
+      
+      CREATE INDEX IF NOT EXISTS idx_jobs_shipment ON jobs(shipment_id);
+      CREATE INDEX IF NOT EXISTS idx_jobs_operator ON jobs(operator_id);
+      
+      CREATE TABLE IF NOT EXISTS job_steps (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        job_id INTEGER NOT NULL,
+        step_name TEXT NOT NULL,
+        operator_id INTEGER,
+        progress INTEGER DEFAULT 0,
+        started_at DATETIME,
+        completed_at DATETIME,
+        FOREIGN KEY (job_id) REFERENCES jobs(id),
+        FOREIGN KEY (operator_id) REFERENCES users(id)
+      );
+      
+      CREATE INDEX IF NOT EXISTS idx_job_steps_job ON job_steps(job_id);
+      
+      CREATE TABLE IF NOT EXISTS audit_logs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        action TEXT NOT NULL,
+        entity_type TEXT NOT NULL,
+        entity_id INTEGER NOT NULL,
+        details TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id)
+      );
+      
+      CREATE INDEX IF NOT EXISTS idx_audit_logs_user ON audit_logs(user_id);
+      CREATE INDEX IF NOT EXISTS idx_audit_logs_entity ON audit_logs(entity_type, entity_id);
+    `);
+  }
+
+  async createUser(user) {
+    const db = await this.getDb();
+    const result = await db.run(
+      'INSERT INTO users (name, email, password, role, status) VALUES (?, ?, ?, ?, ?)',
+      [user.name, user.email, user.password, user.role, user.status]
+    );
+    return { id: result.lastID, ...user };
+  }
+
+  async createClient(client) {
+    const db = await this.getDb();
+    const result = await db.run(
+      'INSERT INTO clients (name, contact_name, email, phone, status) VALUES (?, ?, ?, ?, ?)',
+      [client.name, client.contact_name, client.email, client.phone, client.status]
+    );
+    return { id: result.lastID, ...client };
+  }
+
+  async createProject(project) {
+    const db = await this.getDb();
+    const result = await db.run(
+      'INSERT INTO projects (client_id, name, description, status, sla_hours) VALUES (?, ?, ?, ?, ?)',
+      [project.client_id, project.name, project.description, project.status, project.sla_hours]
+    );
+    return { id: result.lastID, ...project };
+  }
+
+  async createShipment(shipment) {
+    const db = await this.getDb();
+    const result = await db.run(
+      'INSERT INTO shipments (project_id, tracking_number, status, box_count) VALUES (?, ?, ?, ?)',
+      [shipment.project_id, shipment.tracking_number, shipment.status, shipment.box_count]
+    );
+    return { id: result.lastID, ...shipment };
+  }
+
+  async createJob(job) {
+    const db = await this.getDb();
+    const result = await db.run(
+      'INSERT INTO jobs (shipment_id, operator_id, status, current_step, started_at, completed_at) VALUES (?, ?, ?, ?, ?, ?)',
+      [job.shipment_id, job.operator_id, job.status, job.current_step, job.started_at, job.completed_at]
+    );
+    return { id: result.lastID, ...job };
+  }
+
+  async getShipments() {
+    const db = await this.getDb();
+    return db.all(`
+      SELECT s.*, p.name as project_name, c.name as client_name
+      FROM shipments s
+      JOIN projects p ON s.project_id = p.id
+      JOIN clients c ON p.client_id = c.id
+      ORDER BY s.created_at DESC
+    `);
   }
 
   // User operations
-  createUser({ name, email, password, role }) {
-    const hashedPassword = bcrypt.hashSync(password, 10)
-    return this.db.prepare(`
-      INSERT INTO users (id, name, email, password, role)
-      VALUES (?, ?, ?, ?, ?)
-      RETURNING *
-    `).get(
-      'user-' + Date.now(),
-      name,
-      email,
-      hashedPassword,
-      role
-    )
-  }
-
   getUsers() {
     return this.db.prepare('SELECT id, name, email, role, status, created_at, last_login FROM users').all()
   }
@@ -66,20 +214,6 @@ class DatabaseService {
   }
 
   // Client operations
-  createClient({ name, contactName, email, phone }) {
-    return this.db.prepare(`
-      INSERT INTO clients (id, name, contact_name, email, phone)
-      VALUES (?, ?, ?, ?, ?)
-      RETURNING *
-    `).get(
-      'client-' + Date.now(),
-      name,
-      contactName,
-      email,
-      phone
-    )
-  }
-
   getClients() {
     return this.db.prepare('SELECT * FROM clients').all()
   }
@@ -120,20 +254,6 @@ class DatabaseService {
   }
 
   // Project operations
-  createProject({ clientId, name, description, slaHours }) {
-    return this.db.prepare(`
-      INSERT INTO projects (id, client_id, name, description, sla_hours)
-      VALUES (?, ?, ?, ?, ?)
-      RETURNING *
-    `).get(
-      'project-' + Date.now(),
-      clientId,
-      name,
-      description,
-      slaHours
-    )
-  }
-
   getProjects() {
     return this.db.prepare(`
       SELECT 
@@ -146,35 +266,6 @@ class DatabaseService {
   }
 
   // Job operations
-  createJob({ shipmentId, operatorId, currentStep }) {
-    const jobId = 'job-' + Date.now()
-    
-    // Start a transaction
-    const transaction = this.db.transaction((jobId, shipmentId, operatorId, currentStep) => {
-      // Create the job
-      this.db.prepare(`
-        INSERT INTO jobs (id, shipment_id, operator_id, current_step)
-        VALUES (?, ?, ?, ?)
-      `).run(jobId, shipmentId, operatorId, currentStep)
-
-      // Create initial job steps
-      const steps = ['PREP', 'SCAN', 'QC', 'INDEX', 'REPREP']
-      const stepStmt = this.db.prepare(`
-        INSERT INTO job_steps (id, job_id, step_name)
-        VALUES (?, ?, ?)
-      `)
-
-      steps.forEach(step => {
-        stepStmt.run('step-' + Date.now() + Math.random(), jobId, step)
-      })
-
-      // Return the created job with its steps
-      return this.getJobById(jobId)
-    })
-
-    return transaction(jobId, shipmentId, operatorId, currentStep)
-  }
-
   getJobById(jobId) {
     const job = this.db.prepare(`
       SELECT 
@@ -355,6 +446,4 @@ class DatabaseService {
   close() {
     this.db.close()
   }
-}
-
-module.exports = DatabaseService 
+} 
