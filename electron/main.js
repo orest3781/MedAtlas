@@ -1,7 +1,12 @@
-const { app, BrowserWindow, ipcMain } = require('electron')
-const path = require('path')
-const Store = require('electron-store')
-const DatabaseService = require('./services/database')
+import { app, BrowserWindow, ipcMain } from 'electron'
+import path from 'path'
+import { fileURLToPath } from 'url'
+import Store from 'electron-store'
+import { DatabaseService } from './services/database.js'
+
+// Get __dirname equivalent in ES modules
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 
 // Initialize electron store
 const store = new Store()

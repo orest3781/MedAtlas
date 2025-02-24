@@ -362,12 +362,41 @@ import { ref, onMounted, onUnmounted, computed } from '@vue/runtime-core'
 import { CheckIcon } from '@heroicons/vue/24/solid'
 import { ChevronLeftIcon, ChevronRightIcon } from '@heroicons/vue/24/outline'
 import KioskBackground from '../components/KioskBackground.vue'
+import { useJobs } from '@/composables/useJobs'
+import { useShipments } from '@/composables/useShipments'
+import type { Job } from '@/types/database'
 
 // Time display
 const currentTime = ref(new Date().toLocaleString())
 setInterval(() => {
   currentTime.value = new Date().toLocaleString()
 }, 1000)
+
+// Use composables
+const { 
+  jobs: currentJobs,
+  loading: jobsLoading,
+  error: jobsError,
+  activeJobs,
+  completedJobsToday,
+  averageProcessingTime,
+  queueStatus,
+  loadJobs,
+  createJob,
+  updateJobStep
+} = useJobs()
+
+const {
+  loading: shipmentsLoading,
+  error: shipmentsError,
+  getShipmentByTracking,
+  updateShipmentStatus
+} = useShipments()
+
+// Load initial data
+onMounted(async () => {
+  await loadJobs()
+})
 
 // Scan state
 const showScanModal = ref(false)
@@ -406,40 +435,6 @@ interface Job {
   steps: JobSteps;
   currentStep: keyof JobSteps;
 }
-
-// Update mock data
-const currentJobs = ref<Job[]>([
-  {
-    id: 1,
-    shipmentId: 'SHIP001',
-    employeeId: 'EMP123',
-    startTime: '9:30 AM',
-    status: 'In Progress',
-    steps: {
-      PREP: { progress: 100, lastUpdated: new Date(Date.now() - 30 * 60000).toISOString(), operator: 'John Smith' },
-      SCAN: { progress: 75, lastUpdated: new Date(Date.now() - 90 * 60000).toISOString(), operator: 'Mike Brown' },
-      QC: { progress: 0, lastUpdated: null, operator: null },
-      INDEX: { progress: 0, lastUpdated: null, operator: null },
-      REPREP: { progress: 0, lastUpdated: null, operator: null }
-    },
-    currentStep: 'SCAN'
-  },
-  {
-    id: 2,
-    shipmentId: 'SHIP002',
-    employeeId: 'EMP456',
-    startTime: '10:15 AM',
-    status: 'In Progress',
-    steps: {
-      PREP: { progress: 100, lastUpdated: new Date(Date.now() - 150 * 60000).toISOString(), operator: 'Sarah Lee' },
-      SCAN: { progress: 100, lastUpdated: new Date(Date.now() - 120 * 60000).toISOString(), operator: 'Mike Brown' },
-      QC: { progress: 50, lastUpdated: new Date().toISOString(), operator: 'John Smith' },
-      INDEX: { progress: 0, lastUpdated: null, operator: null },
-      REPREP: { progress: 0, lastUpdated: null, operator: null }
-    },
-    currentStep: 'QC'
-  }
-])
 
 // Card hover state
 const isOverCard = ref(false)
@@ -490,11 +485,6 @@ const closeScanModal = () => {
   resetScan()
 }
 
-// Focus input on mount and after each scan
-onMounted(() => {
-  focusScanInput()
-})
-
 const focusScanInput = () => {
   setTimeout(() => {
     scanInput.value?.focus()
@@ -506,7 +496,7 @@ const useDefaultValue = () => {
   handleScan()
 }
 
-const handleScan = () => {
+const handleScan = async () => {
   if (!scanValue.value) {
     statusMessage.value = { 
       type: 'error', 
@@ -515,14 +505,25 @@ const handleScan = () => {
     return
   }
 
-  if (scanStep.value === 'employee') {
-    // Handle employee badge scan
-    employeeId.value = scanValue.value
-    scanStep.value = 'shipment'
-    statusMessage.value = { type: 'success', text: 'Employee verified. Please scan shipment barcode.' }
-  } else {
-    // Handle shipment barcode scan
-    createJob(employeeId.value, scanValue.value)
+  try {
+    if (scanStep.value === 'employee') {
+      // Handle employee badge scan
+      employeeId.value = scanValue.value
+      scanStep.value = 'shipment'
+      statusMessage.value = { type: 'success', text: 'Employee verified. Please scan shipment barcode.' }
+    } else {
+      // Handle shipment barcode scan
+      const shipment = await getShipmentByTracking(scanValue.value)
+      if (!shipment) {
+        statusMessage.value = { type: 'error', text: 'Shipment not found' }
+        return
+      }
+      
+      await createNewJob(employeeId.value, shipment.id)
+    }
+  } catch (err) {
+    statusMessage.value = { type: 'error', text: 'An error occurred' }
+    console.error(err)
   }
 
   // Clear scan value and refocus
@@ -530,35 +531,27 @@ const handleScan = () => {
   focusScanInput()
 }
 
-const createJob = (empId: string, shipId: string) => {
-  const newJob: Job = {
-    id: Date.now(),
-    shipmentId: shipId,
-    employeeId: empId,
-    startTime: new Date().toLocaleTimeString(),
-    status: 'In Progress',
-    steps: {
-      PREP: { progress: 0, lastUpdated: new Date().toISOString(), operator: empId },
-      SCAN: { progress: 0, lastUpdated: null, operator: null },
-      QC: { progress: 0, lastUpdated: null, operator: null },
-      INDEX: { progress: 0, lastUpdated: null, operator: null },
-      REPREP: { progress: 0, lastUpdated: null, operator: null }
-    },
-    currentStep: 'PREP'
+const createNewJob = async (empId: string, shipmentId: string) => {
+  try {
+    const job = await createJob(shipmentId, empId)
+    recentlyCreatedJob.value = job
+    
+    // Update shipment status
+    await updateShipmentStatus(shipmentId, 'in_progress')
+    
+    setTimeout(() => {
+      recentlyCreatedJob.value = null
+    }, 5000)
+
+    statusMessage.value = { type: 'success', text: 'Job created successfully' }
+    setTimeout(() => {
+      closeScanModal()
+      resetScan()
+    }, 1500)
+  } catch (err) {
+    statusMessage.value = { type: 'error', text: 'Failed to create job' }
+    console.error(err)
   }
-
-  currentJobs.value.unshift(newJob)
-  recentlyCreatedJob.value = newJob
-  
-  setTimeout(() => {
-    recentlyCreatedJob.value = null
-  }, 5000)
-
-  statusMessage.value = { type: 'success', text: 'Job created successfully' }
-  setTimeout(() => {
-    closeScanModal()
-    resetScan()
-  }, 1500)
 }
 
 const resetScan = () => {
@@ -631,12 +624,12 @@ const getStepStatus = (job: Job, step: keyof JobSteps): { color: string; text: s
 const currentPage = ref(1)
 const itemsPerPage = 9
 
-const totalPages = computed(() => Math.ceil(currentJobs.value.length / itemsPerPage))
+const totalPages = computed(() => Math.ceil(currentJobs.length / itemsPerPage))
 
 const paginatedJobs = computed(() => {
   const start = (currentPage.value - 1) * itemsPerPage
   const end = start + itemsPerPage
-  return currentJobs.value.slice(start, end)
+  return currentJobs.slice(start, end)
 })
 
 const nextPage = () => {
@@ -650,32 +643,6 @@ const prevPage = () => {
     currentPage.value--
   }
 }
-
-// Add new computed properties for queue status
-const queueStatus = computed(() => {
-  // Count jobs with delays
-  const delayedJobs = currentJobs.value.filter(job => {
-    const stepData = job.steps[job.currentStep]
-    if (!stepData.lastUpdated) return false
-    
-    const now = new Date()
-    const lastUpdated = new Date(stepData.lastUpdated)
-    const hoursElapsed = (now.getTime() - lastUpdated.getTime()) / (1000 * 60 * 60)
-    
-    return hoursElapsed > 2
-  })
-
-  // Calculate queue health
-  const totalJobs = currentJobs.value.length
-  const delayedCount = delayedJobs.length
-  const delayRatio = delayedCount / (totalJobs || 1)
-
-  // Determine status
-  if (delayRatio === 0 && totalJobs < 5) return { text: 'Optimal', color: 'green' }
-  if (delayRatio === 0) return { text: 'Busy', color: 'sky' }
-  if (delayRatio < 0.3) return { text: 'Delayed', color: 'yellow' }
-  return { text: 'Backlogged', color: 'red' }
-})
 </script>
 
 <style scoped>
