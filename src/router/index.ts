@@ -4,6 +4,7 @@ import DashboardView from '../views/DashboardView.vue'
 import QueueView from '../views/QueueView.vue'
 import AdminView from '../views/AdminView.vue'
 import KioskView from '../views/KioskView.vue'
+import DemoView from '../views/DemoView.vue'
 import { RouteRecordRaw } from 'vue-router'
 
 const routes: RouteRecordRaw[] = [
@@ -49,6 +50,11 @@ const routes: RouteRecordRaw[] = [
         path: 'users',
         name: 'admin-users',
         component: () => import('../views/admin/OperatorsView.vue')
+      },
+      {
+        path: 'roles',
+        name: 'admin-roles',
+        component: () => import('../views/admin/RolesView.vue')
       },
       {
         path: 'clients',
@@ -105,6 +111,11 @@ const routes: RouteRecordRaw[] = [
       requiresAuth: true,
       requiredPermission: 'canAccessReports'
     }
+  },
+  {
+    path: '/demo',
+    name: 'demo',
+    component: DemoView
   }
 ]
 

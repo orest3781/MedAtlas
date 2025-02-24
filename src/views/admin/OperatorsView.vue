@@ -56,10 +56,10 @@
             class="h-11 px-4 bg-surface-dark rounded-lg border border-white/10 text-white focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all duration-200"
           >
             <option value="all">All Roles</option>
-            <option value="production_technician">Production Technician</option>
-            <option value="lead_technician">Lead Production Technician</option>
-            <option value="supervisor">Supervisor</option>
-            <option value="admin">Administrator</option>
+            <option value="ADMIN">Administrator</option>
+            <option value="SUPERVISOR">Supervisor</option>
+            <option value="PROD-TECHNICIAN">Production Technician</option>
+            <option value="RECEIVING">Receiving</option>
           </select>
         </div>
       </div>
@@ -184,34 +184,27 @@
 
             <div>
               <label class="block text-sm font-medium text-white/60 mb-1">Role</label>
-              <select
-                v-model="operatorForm.role"
-                required
-                class="w-full px-4 py-2 bg-surface-darker border border-white/10 rounded-lg text-white focus:ring-2 focus:ring-primary focus:border-primary"
-              >
-                <option value="production_technician">Production Technician</option>
-                <option value="lead_technician">Lead Production Technician</option>
-                <option value="supervisor">Supervisor</option>
-                <option value="admin">Administrator</option>
-              </select>
-            </div>
-
-            <div v-if="operatorForm.role" class="mt-4">
-              <label class="block text-sm font-medium text-white/60 mb-2">Role Permissions</label>
-              <div class="bg-surface-dark rounded-lg p-3 space-y-1.5">
-                <div v-for="permission in rolePermissions[operatorForm.role]" :key="permission" 
-                     class="text-sm text-white/70 flex items-center gap-2">
-                  <svg class="w-4 h-4 text-success" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-                  </svg>
-                  {{ formatPermissionDisplay(permission) }}
-                </div>
+              <div class="space-y-2">
+                <select
+                  v-model="operatorForm.role"
+                  required
+                  class="w-full px-4 py-2 bg-surface-darker border border-white/10 rounded-lg text-white focus:ring-2 focus:ring-primary focus:border-primary"
+                >
+                  <option value="">Select a role</option>
+                  <option value="ADMIN">Administrator (Full Access)</option>
+                  <option value="SUPERVISOR">Supervisor (Operations Access)</option>
+                  <option value="PROD-TECHNICIAN">Production Technician (Queue Access)</option>
+                  <option value="RECEIVING">Receiving (Receiving Access)</option>
+                </select>
+                <p v-if="operatorForm.role" class="text-xs text-white/60 px-1">
+                  {{ getRoleSummary(operatorForm.role) }}
+                </p>
               </div>
             </div>
 
             <button
               type="submit"
-              class="w-full px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-lg transition-colors flex items-center justify-center space-x-2"
+              class="w-full mt-4 px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-lg transition-colors flex items-center justify-center space-x-2"
             >
               <span>{{ editingOperator ? 'Update Team Member' : 'Add Team Member' }}</span>
             </button>
@@ -225,53 +218,20 @@
 <script setup lang="ts">
 import { ref } from '@vue/runtime-core'
 import { computed } from '@vue/runtime-core'
+import { useRolesStore } from '@/stores/roles'
+import type { Role } from '@/stores/roles'
 
 // Update interface with new role types
 interface Operator {
   id: string;
   name: string;
   email: string;
-  role: 'production_technician' | 'lead_technician' | 'supervisor' | 'admin';
-  permissions: string[];
+  role: Role;
   status: 'active' | 'inactive';
   lastActive: string;
 }
 
-// Define role-based permissions
-const rolePermissions = {
-  production_technician: [
-    'view_assigned_queue',
-    'scan_documents',
-    'mark_box_complete',
-    'view_basic_metrics'
-  ],
-  lead_technician: [
-    'view_team_queue',
-    'scan_documents',
-    'mark_box_complete',
-    'adjust_priorities',
-    'view_team_metrics',
-    'quality_control',
-    'train_technicians'
-  ],
-  supervisor: [
-    'manage_technicians',
-    'manage_projects',
-    'view_all_metrics',
-    'manage_priorities',
-    'manage_workflow',
-    'quality_control',
-    'generate_reports'
-  ],
-  admin: [
-    'manage_all_users',
-    'manage_clients',
-    'manage_system_settings',
-    'view_all_data',
-    'generate_reports',
-    'audit_logs'
-  ]
-}
+const rolesStore = useRolesStore()
 
 // State
 const searchQuery = ref('')
@@ -280,44 +240,54 @@ const roleFilter = ref('all')
 const showAddOperatorModal = ref(false)
 const editingOperator = ref<Operator | null>(null)
 
-const operatorForm = ref<Operator>({
+const operatorForm = ref({
   id: '',
   name: '',
   email: '',
-  role: 'production_technician',
-  permissions: rolePermissions.production_technician,
+  role: '' as Role,
   status: 'active',
   lastActive: new Date().toISOString()
 })
 
-// Update mock data with new roles
+// Get permissions for selected role
+const selectedRolePermissions = computed(() => {
+  if (!operatorForm.value.role) return []
+  return rolesStore.getRolePermissions(operatorForm.value.role)
+})
+
+// Mock data
 const operators = ref<Operator[]>([
   {
-    id: '1234',
+    id: '1001',
     name: 'John Smith',
-    email: 'john.smith@example.com',
-    role: 'production_technician',
-    permissions: rolePermissions.production_technician,
+    email: 'john@example.com',
+    role: 'ADMIN',
     status: 'active',
     lastActive: new Date().toISOString()
   },
   {
-    id: '5678',
+    id: '1002',
     name: 'Sarah Johnson',
-    email: 'sarah.j@example.com',
-    role: 'lead_technician',
-    permissions: rolePermissions.lead_technician,
+    email: 'sarah@example.com',
+    role: 'SUPERVISOR',
     status: 'active',
-    lastActive: new Date(Date.now() - 3600000).toISOString()
+    lastActive: new Date().toISOString()
   },
   {
-    id: '9012',
-    name: 'Mike Wilson',
-    email: 'mike.w@example.com',
-    role: 'supervisor',
-    permissions: rolePermissions.supervisor,
+    id: '1003',
+    name: 'Mike Brown',
+    email: 'mike@example.com',
+    role: 'PROD-TECHNICIAN',
     status: 'active',
-    lastActive: new Date(Date.now() - 86400000).toISOString()
+    lastActive: new Date().toISOString()
+  },
+  {
+    id: '1004',
+    name: 'Lisa Davis',
+    email: 'lisa@example.com',
+    role: 'RECEIVING',
+    status: 'active',
+    lastActive: new Date().toISOString()
   }
 ])
 
@@ -381,8 +351,7 @@ const handleOperatorSubmit = () => {
     id: '',
     name: '',
     email: '',
-    role: 'production_technician',
-    permissions: rolePermissions.production_technician,
+    role: '' as Role,
     status: 'active',
     lastActive: new Date().toISOString()
   }
@@ -397,9 +366,38 @@ const formatRoleDisplay = (role: string) => {
 }
 
 const formatPermissionDisplay = (permission: string) => {
-  return permission.split('_')
+  return permission
+    .split('_')
     .map(word => word.charAt(0).toUpperCase() + word.slice(1))
     .join(' ')
+}
+
+const groupedPermissions = computed(() => {
+  const grouped = {}
+  selectedRolePermissions.value.forEach(permission => {
+    const category = permission.split('_')[0]
+    if (!grouped[category]) {
+      grouped[category] = []
+    }
+    grouped[category].push(permission)
+  })
+  return grouped
+})
+
+// Get role summary
+const getRoleSummary = (role: Role): string => {
+  switch (role) {
+    case 'ADMIN':
+      return 'Full system access including admin panel, user management, and all operations'
+    case 'SUPERVISOR':
+      return 'Access to all operations including user management, but no admin panel access'
+    case 'PROD-TECHNICIAN':
+      return 'Access to dashboard and production queue management'
+    case 'RECEIVING':
+      return 'Access to receiving operations only'
+    default:
+      return ''
+  }
 }
 </script>
 
@@ -419,5 +417,23 @@ const formatPermissionDisplay = (permission: string) => {
 .modal-leave-from {
   opacity: 1;
   transform: scale(1);
+}
+
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.2);
+  border-radius: 2px;
 }
 </style> 

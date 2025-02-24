@@ -1,150 +1,366 @@
 <!-- KioskView.vue -->
 <template>
-  <div class="kiosk-view">
+  <div class="kiosk-view" @mousemove="handleMouseMove">
     <!-- Background -->
     <KioskBackground />
     
     <!-- Content -->
-    <div class="min-h-screen flex flex-col items-center justify-center py-12 px-4">
+    <div class="min-h-screen flex flex-col p-6">
       <!-- Header -->
-      <div class="text-center mb-12">
-        <div class="text-3xl font-bold tracking-wider flex items-center justify-center gap-[1px] relative mb-2">
-          <span class="bg-gradient-to-r from-sky-400 to-sky-500 bg-clip-text text-transparent">Med</span>
-          <span class="bg-gradient-to-r from-indigo-400 to-indigo-500 bg-clip-text text-transparent">Atlas</span>
-        </div>
-        <div class="text-white/50">{{ currentTime }}</div>
+      <div class="text-center mb-8">
+        <div class="text-4xl font-bold tracking-wider text-sky-400">MedAtlas</div>
       </div>
 
-      <!-- Cards Grid -->
-      <div class="grid">
-        <!-- Scan Card -->
-        <div class="card">
-          <span class="icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M3 7V5a2 2 0 0 1 2-2h2" />
-              <path d="M17 3h2a2 2 0 0 1 2 2v2" />
-              <path d="M21 17v2a2 2 0 0 1-2 2h-2" />
-              <path d="M7 21H5a2 2 0 0 1-2-2v-2" />
-              <rect x="7" y="7" width="10" height="10" rx="2" />
-            </svg>
-          </span>
-          <h4>{{ scanStep === 'employee' ? 'Scan Employee Badge' : 'Scan Shipment Barcode' }}</h4>
-          
-          <!-- Scan Input -->
-          <div class="mt-4">
-            <input
-              ref="scanInput"
-              v-model="scanValue"
-              type="text"
-              :placeholder="scanStep === 'employee' ? 'Scan Employee Badge' : 'Scan Shipment Barcode'"
-              class="w-full px-3 py-2 bg-surface-darker border border-white/10 rounded-lg text-white focus:outline-none focus:border-sky-500 text-sm"
-              @keyup.enter="handleScan"
-              autocomplete="off"
-            />
-          </div>
-          
-          <!-- Preview -->
-          <div v-if="scanStep === 'shipment' && employeeId" class="mt-3 p-2 rounded bg-surface-darker/50 border border-white/5">
-            <div class="text-xs text-white/60">Employee ID:</div>
-            <div class="text-sm text-white font-medium">{{ employeeId }}</div>
-          </div>
-
-          <!-- Status Message -->
-          <div v-if="statusMessage" :class="['mt-3 p-2 rounded text-xs', statusMessage.type === 'error' ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400']">
-            {{ statusMessage.text }}
-          </div>
-
-          <!-- Cancel Button -->
-          <button
-            v-if="scanStep === 'shipment'"
-            @click="resetScan"
-            class="mt-3 w-full px-3 py-2 bg-white/5 hover:bg-white/10 text-white/60 rounded-lg text-xs font-medium transition-colors"
-          >
-            Cancel
-          </button>
-
-          <div class="shine"></div>
-          <div class="background">
-            <div class="tiles">
-              <div class="tile tile-1"></div>
-              <div class="tile tile-2"></div>
-              <div class="tile tile-3"></div>
-              <div class="tile tile-4"></div>
-              <div class="tile tile-5"></div>
-              <div class="tile tile-6"></div>
-              <div class="tile tile-7"></div>
-              <div class="tile tile-8"></div>
-              <div class="tile tile-9"></div>
-              <div class="tile tile-10"></div>
-            </div>
-            <div class="line line-1"></div>
-            <div class="line line-2"></div>
-            <div class="line line-3"></div>
-          </div>
-        </div>
-
-        <!-- Current Jobs Card -->
-        <div class="card">
-          <span class="icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
-              <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
-              <line x1="12" y1="22.08" x2="12" y2="12" />
-            </svg>
-          </span>
-          <h4>Active Jobs</h4>
-          
-          <div class="mt-4 space-y-3 max-h-[220px] overflow-y-auto custom-scrollbar">
-            <div v-for="job in currentJobs" :key="job.id" 
-              class="p-2 bg-surface-darker/50 rounded border border-white/5 text-sm"
+      <!-- Main Content Area -->
+      <div class="flex-1 flex">
+        <!-- Left Side - Check In -->
+        <div class="w-[300px] px-4">
+          <div class="check-in-card-container">
+            <div class="rotating-border"></div>
+            <div 
+              class="check-in-card group"
+              @click="openScanModal"
             >
-              <div class="flex justify-between items-start">
-                <div>
-                  <div class="font-medium text-white">Shipment {{ job.shipmentId }}</div>
-                  <div class="text-white/60 text-xs">Operator: {{ job.employeeId }}</div>
-                  <div class="text-white/40 text-xs">Started: {{ job.startTime }}</div>
+              <div class="flex flex-col items-center gap-4">
+                <div class="barcode-icon group-hover:scale-110 transition-transform duration-300">
+                  <div class="flex items-end h-20 w-[240px] justify-between">
+                    <!-- Start bars -->
+                    <div class="h-8 w-[2px] bg-sky-400"></div>
+                    <div class="h-8 w-[1px] bg-sky-400"></div>
+                    <div class="h-8 w-[2px] bg-sky-400"></div>
+                    <!-- First heartbeat -->
+                    <div class="h-8 w-[1px] bg-sky-400"></div>
+                    <div class="h-12 w-[2px] bg-sky-400"></div>
+                    <div class="h-16 w-[1px] bg-sky-400"></div>
+                    <div class="h-20 w-[3px] bg-sky-400"></div>
+                    <div class="h-4 w-[1px] bg-sky-400"></div>
+                    <div class="h-8 w-[2px] bg-sky-400"></div>
+                    <!-- Middle section -->
+                    <div class="h-8 w-[1px] bg-sky-400"></div>
+                    <div class="h-8 w-[2px] bg-sky-400"></div>
+                    <div class="h-8 w-[1px] bg-sky-400"></div>
+                    <div class="h-8 w-[2px] bg-sky-400"></div>
+                    <div class="h-8 w-[1px] bg-sky-400"></div>
+                    <!-- Second heartbeat -->
+                    <div class="h-12 w-[2px] bg-sky-400"></div>
+                    <div class="h-16 w-[1px] bg-sky-400"></div>
+                    <div class="h-20 w-[3px] bg-sky-400"></div>
+                    <div class="h-4 w-[1px] bg-sky-400"></div>
+                    <div class="h-8 w-[2px] bg-sky-400"></div>
+                    <!-- Third heartbeat -->
+                    <div class="h-12 w-[2px] bg-sky-400"></div>
+                    <div class="h-16 w-[1px] bg-sky-400"></div>
+                    <div class="h-20 w-[3px] bg-sky-400"></div>
+                    <div class="h-4 w-[1px] bg-sky-400"></div>
+                    <div class="h-8 w-[2px] bg-sky-400"></div>
+                    <!-- End bars -->
+                    <div class="h-8 w-[1px] bg-sky-400"></div>
+                    <div class="h-8 w-[2px] bg-sky-400"></div>
+                    <div class="h-8 w-[1px] bg-sky-400"></div>
+                  </div>
+                  <!-- Add small text below -->
+                  <div class="text-[10px] text-sky-400/60 text-center mt-2">SCAN</div>
                 </div>
-                <div class="text-right">
-                  <span :class="['px-2 py-0.5 rounded-full text-xs font-medium', 
-                    job.status === 'In Progress' ? 'bg-sky-500/20 text-sky-400' : 'bg-yellow-500/20 text-yellow-400']"
-                  >
-                    {{ job.status }}
-                  </span>
+                <h2 class="text-4xl font-bold text-white group-hover:text-sky-400 transition-colors duration-300">CHECK IN</h2>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Status Cards -->
+          <div class="mt-8 space-y-4">
+            <!-- Active Jobs Card -->
+            <div class="status-card group">
+              <div class="flex items-center justify-between">
+                <div class="space-y-1">
+                  <div class="text-white/60 text-sm">Total Active Jobs</div>
+                  <div class="text-2xl font-bold text-white">{{ currentJobs.length }}</div>
+                </div>
+                <div class="w-12 h-12 rounded-xl bg-sky-500/10 flex items-center justify-center group-hover:bg-sky-500/20 transition-colors">
+                  <div class="w-6 h-6 border-2 border-sky-400 rounded-lg"></div>
                 </div>
               </div>
             </div>
 
-            <div v-if="currentJobs.length === 0" class="text-center text-white/40 py-4 text-sm">
-              No active jobs
+            <!-- Average Processing Time Card -->
+            <div class="status-card group">
+              <div class="flex items-center justify-between">
+                <div class="space-y-1">
+                  <div class="text-white/60 text-sm">Avg Processing Time</div>
+                  <div class="text-2xl font-bold text-white">1.5h</div>
+                </div>
+                <div class="w-12 h-12 rounded-xl bg-sky-500/10 flex items-center justify-center group-hover:bg-sky-500/20 transition-colors">
+                  <div class="w-6 h-6 border-2 border-sky-400 rounded-full flex items-center justify-center">
+                    <div class="w-2.5 h-2.5 bg-sky-400 rounded-full"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Completed Jobs Card -->
+            <div class="status-card group">
+              <div class="flex items-center justify-between">
+                <div class="space-y-1">
+                  <div class="text-white/60 text-sm">Completed Today</div>
+                  <div class="text-2xl font-bold text-white">24</div>
+                </div>
+                <div class="w-12 h-12 rounded-xl bg-green-500/10 flex items-center justify-center group-hover:bg-green-500/20 transition-colors">
+                  <div class="w-6 h-6 border-2 border-green-400 rounded-lg flex items-center justify-center">
+                    <div class="w-3 h-3 bg-green-400"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Queue Status Card -->
+            <div class="status-card group">
+              <div class="flex items-center justify-between">
+                <div class="space-y-1">
+                  <div class="text-white/60 text-sm">Queue Status</div>
+                  <div class="text-2xl font-bold text-white">{{ queueStatus.text }}</div>
+                </div>
+                <div :class="[
+                  'w-12 h-12 rounded-xl flex items-center justify-center transition-colors',
+                  {
+                    'bg-green-500/10 group-hover:bg-green-500/20': queueStatus.color === 'green',
+                    'bg-sky-500/10 group-hover:bg-sky-500/20': queueStatus.color === 'sky',
+                    'bg-yellow-500/10 group-hover:bg-yellow-500/20': queueStatus.color === 'yellow',
+                    'bg-red-500/10 group-hover:bg-red-500/20': queueStatus.color === 'red'
+                  }
+                ]">
+                  <div class="w-6 h-6">
+                    <div :class="[
+                      'w-full h-1.5 rounded-full mb-1',
+                      {
+                        'bg-green-400': queueStatus.color === 'green',
+                        'bg-sky-400': queueStatus.color === 'sky',
+                        'bg-yellow-400': queueStatus.color === 'yellow',
+                        'bg-red-400': queueStatus.color === 'red'
+                      }
+                    ]"></div>
+                    <div :class="[
+                      'h-1.5 rounded-full mb-1',
+                      {
+                        'w-4/5 bg-green-400': queueStatus.color === 'green',
+                        'w-full bg-sky-400': queueStatus.color === 'sky',
+                        'w-3/5 bg-yellow-400': queueStatus.color === 'yellow',
+                        'w-2/5 bg-red-400': queueStatus.color === 'red'
+                      }
+                    ]"></div>
+                    <div :class="[
+                      'h-1.5 rounded-full',
+                      {
+                        'w-3/5 bg-green-400': queueStatus.color === 'green',
+                        'w-4/5 bg-sky-400': queueStatus.color === 'sky',
+                        'w-2/5 bg-yellow-400': queueStatus.color === 'yellow',
+                        'w-1/5 bg-red-400': queueStatus.color === 'red'
+                      }
+                    ]"></div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
+        </div>
 
-          <div class="shine"></div>
-          <div class="background">
-            <div class="tiles">
-              <div class="tile tile-1"></div>
-              <div class="tile tile-2"></div>
-              <div class="tile tile-3"></div>
-              <div class="tile tile-4"></div>
-              <div class="tile tile-5"></div>
-              <div class="tile tile-6"></div>
-              <div class="tile tile-7"></div>
-              <div class="tile tile-8"></div>
-              <div class="tile tile-9"></div>
-              <div class="tile tile-10"></div>
+        <!-- Right Side - Jobs Grid -->
+        <div class="flex-1">
+          <div class="flex items-center">
+            <!-- Left Arrow with Page Number -->
+            <div v-if="totalPages > 1" class="flex flex-col items-center w-[60px]">
+              <div class="h-6 text-white/60 text-lg font-medium">
+                {{ currentPage > 1 ? currentPage - 1 : '' }}
+              </div>
+              <button 
+                @click="prevPage"
+                :disabled="currentPage === 1"
+                class="p-4 rounded-xl text-white/60 hover:text-white hover:bg-surface-dark/90 disabled:opacity-30 disabled:hover:bg-transparent transition-all duration-300 backdrop-blur-sm border border-white/10"
+              >
+                <ChevronLeftIcon class="w-8 h-8" />
+              </button>
             </div>
-            <div class="line line-1"></div>
-            <div class="line line-2"></div>
-            <div class="line line-3"></div>
+
+            <div class="flex-1">
+              <div class="jobs-grid">
+                <div v-for="job in paginatedJobs" :key="job.id" 
+                  class="job-card flex flex-col justify-between"
+                  :class="[
+                    { 'recently-created': job.id === recentlyCreatedJob?.id },
+                    getCardBorderColor(job)
+                  ]"
+                >
+                  <div class="space-y-4">
+                    <div class="flex justify-between items-center">
+                      <span :class="['status-badge', 
+                        job.status === 'In Progress' ? 'bg-sky-500/20 text-sky-400' : 'bg-yellow-500/20 text-yellow-400']"
+                      >
+                        {{ job.status }}
+                      </span>
+                      <!-- Time Status Badge -->
+                      <span v-if="job.steps[job.currentStep].lastUpdated"
+                            :class="[
+                              'status-badge text-sm',
+                              {
+                                'bg-green-500/20 text-green-400': getStepStatus(job, job.currentStep).color === 'green',
+                                'bg-yellow-500/20 text-yellow-400': getStepStatus(job, job.currentStep).color === 'yellow',
+                                'bg-red-500/20 text-red-400': getStepStatus(job, job.currentStep).color === 'red'
+                              }
+                            ]"
+                      >
+                        {{ getStepStatus(job, job.currentStep).text }}
+                      </span>
+                    </div>
+                    <div>
+                      <div class="font-medium text-white text-xl">Shipment {{ job.shipmentId }}</div>
+                      <div class="text-white/60">{{ job.steps[job.currentStep].operator || job.employeeId }}</div>
+                    </div>
+                  </div>
+
+                  <!-- Start Time -->
+                  <div class="text-4xl font-bold text-white/80 mb-4">Started: {{ job.startTime }}</div>
+
+                  <!-- Progress Steps -->
+                  <div class="flex items-center gap-2">
+                    <template v-for="step in workflowSteps" :key="step">
+                      <div class="flex-1 group relative">
+                        <div class="flex items-center justify-between mb-1">
+                          <div class="flex items-center gap-2">
+                            <div class="text-white/60 text-[10px] font-medium">{{ step }}</div>
+                            <div v-if="job.steps[step].operator" 
+                                 class="text-white/40 text-[10px] px-1 py-0.5 bg-white/5 rounded">
+                              {{ getInitials(job.steps[step].operator) }}
+                            </div>
+                          </div>
+                          <div v-if="job.steps[step].progress === 100" 
+                               class="text-green-500">
+                            <CheckIcon class="w-3 h-3" />
+                          </div>
+                          <div v-else-if="job.steps[step].lastUpdated" 
+                               class="text-white/40 text-[10px]">
+                            {{ job.steps[step].progress }}%
+                          </div>
+                        </div>
+                        <div class="bg-white/5 rounded-full h-1">
+                          <div class="h-1 rounded-full transition-all duration-300"
+                               :class="getProgressBarColor(job, step)"
+                               :style="{ width: `${getStepProgress(job, step)}%` }">
+                          </div>
+                        </div>
+                      </div>
+                      <div v-if="step !== workflowSteps[workflowSteps.length-1]" class="w-4"></div>
+                    </template>
+                  </div>
+                </div>
+
+                <!-- Empty Job Card Placeholders -->
+                <div v-for="i in Math.max(0, 9 - paginatedJobs.length)" :key="'empty-'+i" 
+                  class="job-card empty">
+                </div>
+              </div>
+
+              <!-- Page Indicator -->
+              <div v-if="totalPages > 1" class="text-center mt-4 text-white/60">
+                Page {{ currentPage }} of {{ totalPages }}
+              </div>
+            </div>
+
+            <!-- Right Arrow with Page Number -->
+            <div v-if="totalPages > 1" class="flex flex-col items-center w-[60px]">
+              <div class="h-6 text-white/60 text-lg font-medium">
+                {{ currentPage < totalPages ? currentPage + 1 : '' }}
+              </div>
+              <button 
+                @click="nextPage"
+                :disabled="currentPage === totalPages"
+                class="p-4 rounded-xl text-white/60 hover:text-white hover:bg-surface-dark/90 disabled:opacity-30 disabled:hover:bg-transparent transition-all duration-300 backdrop-blur-sm border border-white/10"
+              >
+                <ChevronRightIcon class="w-8 h-8" />
+              </button>
+            </div>
           </div>
         </div>
       </div>
     </div>
+
+    <!-- Scan Modal -->
+    <Transition name="modal">
+      <div v-if="showScanModal" class="fixed inset-0 flex items-center justify-center z-50">
+        <div class="absolute inset-0 bg-black/80 backdrop-blur-sm" @click="closeScanModal"></div>
+        <div class="relative bg-surface-dark/90 rounded-2xl p-8 max-w-2xl w-full mx-4 border border-white/10">
+          <!-- Modal Header -->
+          <div class="text-center mb-8">
+            <h2 class="text-2xl font-bold text-white">
+              {{ scanStep === 'employee' ? 'Scan Employee Badge' : 'Scan Shipment Barcode' }}
+            </h2>
+            <p class="text-white/60 mt-2">
+              {{ scanStep === 'employee' ? 'Please scan your employee badge or use the test ID below' : 'Please scan the shipment barcode or use the test ID below' }}
+            </p>
+          </div>
+
+          <!-- Scan Input -->
+          <div class="space-y-6">
+            <div class="relative">
+              <input
+                ref="scanInput"
+                v-model="scanValue"
+                type="text"
+                :placeholder="scanStep === 'employee' ? 'Employee ID' : 'Shipment ID'"
+                class="w-full px-6 py-4 bg-surface-darker border-2 border-white/10 rounded-xl text-white text-lg focus:outline-none focus:border-sky-500 transition-colors"
+                @keyup.enter="handleScan"
+                autocomplete="off"
+              />
+              <button 
+                class="absolute right-4 top-1/2 -translate-y-1/2 px-4 py-2 bg-sky-500/20 text-sky-400 rounded-lg text-sm"
+                @click="useDefaultValue"
+              >
+                Use Test ID
+              </button>
+            </div>
+
+            <!-- Preview -->
+            <div v-if="scanStep === 'shipment' && employeeId" 
+              class="p-4 rounded-xl bg-surface-darker/50 border border-white/10"
+            >
+              <div class="text-sm text-white/60">Employee ID:</div>
+              <div class="text-lg text-white font-medium">{{ employeeId }}</div>
+            </div>
+
+            <!-- Status Message -->
+            <div v-if="statusMessage" 
+              :class="[
+                'p-4 rounded-xl text-sm font-medium',
+                statusMessage.type === 'error' ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'
+              ]"
+            >
+              {{ statusMessage.text }}
+            </div>
+
+            <!-- Actions -->
+            <div class="flex gap-4">
+              <button
+                @click="closeScanModal"
+                class="flex-1 px-6 py-3 bg-white/5 hover:bg-white/10 text-white rounded-xl text-sm font-medium transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                v-if="scanStep === 'shipment'"
+                @click="resetScan"
+                class="flex-1 px-6 py-3 bg-sky-500/20 hover:bg-sky-500/30 text-sky-400 rounded-xl text-sm font-medium transition-colors"
+              >
+                Scan New Badge
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Transition>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted, computed } from '@vue/runtime-core'
+import { CheckIcon } from '@heroicons/vue/24/solid'
+import { ChevronLeftIcon, ChevronRightIcon } from '@heroicons/vue/24/outline'
 import KioskBackground from '../components/KioskBackground.vue'
 
 // Time display
@@ -154,29 +370,125 @@ setInterval(() => {
 }, 1000)
 
 // Scan state
+const showScanModal = ref(false)
 const scanStep = ref<'employee' | 'shipment'>('employee')
 const scanValue = ref('')
 const employeeId = ref('')
 const statusMessage = ref<{ type: 'success' | 'error', text: string } | null>(null)
 const scanInput = ref<HTMLInputElement | null>(null)
+const recentlyCreatedJob = ref<Job | null>(null)
 
-// Jobs state
-const currentJobs = ref([
+// Default test values
+const DEFAULT_EMPLOYEE_ID = 'EMP123'
+const DEFAULT_SHIPMENT_ID = 'SHIP456'
+
+// Update type definitions
+interface StepData {
+  progress: number;
+  lastUpdated: string | null;
+  operator?: string | null;
+}
+
+interface JobSteps {
+  PREP: StepData;
+  SCAN: StepData;
+  QC: StepData;
+  INDEX: StepData;
+  REPREP: StepData;
+}
+
+interface Job {
+  id: number;
+  shipmentId: string;
+  employeeId: string;
+  startTime: string;
+  status: string;
+  steps: JobSteps;
+  currentStep: keyof JobSteps;
+}
+
+// Update mock data
+const currentJobs = ref<Job[]>([
   {
     id: 1,
     shipmentId: 'SHIP001',
     employeeId: 'EMP123',
     startTime: '9:30 AM',
-    status: 'In Progress'
+    status: 'In Progress',
+    steps: {
+      PREP: { progress: 100, lastUpdated: new Date(Date.now() - 30 * 60000).toISOString(), operator: 'John Smith' },
+      SCAN: { progress: 75, lastUpdated: new Date(Date.now() - 90 * 60000).toISOString(), operator: 'Mike Brown' },
+      QC: { progress: 0, lastUpdated: null, operator: null },
+      INDEX: { progress: 0, lastUpdated: null, operator: null },
+      REPREP: { progress: 0, lastUpdated: null, operator: null }
+    },
+    currentStep: 'SCAN'
   },
   {
     id: 2,
     shipmentId: 'SHIP002',
     employeeId: 'EMP456',
     startTime: '10:15 AM',
-    status: 'In Progress'
+    status: 'In Progress',
+    steps: {
+      PREP: { progress: 100, lastUpdated: new Date(Date.now() - 150 * 60000).toISOString(), operator: 'Sarah Lee' },
+      SCAN: { progress: 100, lastUpdated: new Date(Date.now() - 120 * 60000).toISOString(), operator: 'Mike Brown' },
+      QC: { progress: 50, lastUpdated: new Date().toISOString(), operator: 'John Smith' },
+      INDEX: { progress: 0, lastUpdated: null, operator: null },
+      REPREP: { progress: 0, lastUpdated: null, operator: null }
+    },
+    currentStep: 'QC'
   }
 ])
+
+// Card hover state
+const isOverCard = ref(false)
+
+// Workflow steps
+const workflowSteps = ['PREP', 'SCAN', 'QC', 'INDEX', 'REPREP']
+
+// Update type annotations in functions
+const getStepProgress = (job: Job, step: keyof JobSteps): number => {
+  return job.steps[step].progress
+}
+
+const getProgressBarColor = (job: Job, step: keyof JobSteps): string => {
+  const stepData = job.steps[step]
+  if (!stepData.lastUpdated) return 'bg-white/20'
+  
+  const now = new Date()
+  const lastUpdated = new Date(stepData.lastUpdated)
+  const hoursElapsed = (now.getTime() - lastUpdated.getTime()) / (1000 * 60 * 60)
+  
+  if (stepData.progress === 100) return 'bg-green-500'
+  if (hoursElapsed <= 1) return 'bg-green-500'
+  if (hoursElapsed <= 2) return 'bg-yellow-500'
+  return 'bg-red-500'
+}
+
+const getCardBorderColor = (job: Job): string => {
+  const currentStepData = job.steps[job.currentStep]
+  if (!currentStepData.lastUpdated) return 'border-white/10'
+  
+  const now = new Date()
+  const lastUpdated = new Date(currentStepData.lastUpdated)
+  const hoursElapsed = (now.getTime() - lastUpdated.getTime()) / (1000 * 60 * 60)
+  
+  if (hoursElapsed <= 1) return 'border-green-500/50'
+  if (hoursElapsed <= 2) return 'border-yellow-500/50'
+  return 'border-red-500/50'
+}
+
+// Modal controls
+const openScanModal = () => {
+  showScanModal.value = true
+  focusScanInput()
+}
+
+const closeScanModal = () => {
+  showScanModal.value = false
+  resetScan()
+}
 
 // Focus input on mount and after each scan
 onMounted(() => {
@@ -187,6 +499,11 @@ const focusScanInput = () => {
   setTimeout(() => {
     scanInput.value?.focus()
   }, 0)
+}
+
+const useDefaultValue = () => {
+  scanValue.value = scanStep.value === 'employee' ? DEFAULT_EMPLOYEE_ID : DEFAULT_SHIPMENT_ID
+  handleScan()
 }
 
 const handleScan = () => {
@@ -214,21 +531,34 @@ const handleScan = () => {
 }
 
 const createJob = (empId: string, shipId: string) => {
-  // Create new job
-  const newJob = {
+  const newJob: Job = {
     id: Date.now(),
     shipmentId: shipId,
     employeeId: empId,
     startTime: new Date().toLocaleTimeString(),
-    status: 'In Progress'
+    status: 'In Progress',
+    steps: {
+      PREP: { progress: 0, lastUpdated: new Date().toISOString(), operator: empId },
+      SCAN: { progress: 0, lastUpdated: null, operator: null },
+      QC: { progress: 0, lastUpdated: null, operator: null },
+      INDEX: { progress: 0, lastUpdated: null, operator: null },
+      REPREP: { progress: 0, lastUpdated: null, operator: null }
+    },
+    currentStep: 'PREP'
   }
 
-  // Add to jobs list
   currentJobs.value.unshift(newJob)
+  recentlyCreatedJob.value = newJob
+  
+  setTimeout(() => {
+    recentlyCreatedJob.value = null
+  }, 5000)
 
-  // Reset scan state
   statusMessage.value = { type: 'success', text: 'Job created successfully' }
-  resetScan()
+  setTimeout(() => {
+    closeScanModal()
+    resetScan()
+  }, 1500)
 }
 
 const resetScan = () => {
@@ -238,6 +568,114 @@ const resetScan = () => {
   statusMessage.value = null
   focusScanInput()
 }
+
+const handleMouseMove = () => {
+  // Empty function but kept to prevent template errors
+}
+
+const handleCardEnter = () => {
+  isOverCard.value = true
+}
+
+const handleCardLeave = () => {
+  isOverCard.value = false
+}
+
+// Clean up on unmount
+onUnmounted(() => {
+  // Empty function but kept to prevent template errors
+})
+
+// Add formatElapsedTime function
+const formatElapsedTime = (timestamp: string | null): string => {
+  if (!timestamp) return 'Not started'
+  const now = new Date()
+  const updated = new Date(timestamp)
+  const diffInMinutes = Math.floor((now.getTime() - updated.getTime()) / (1000 * 60))
+  
+  if (diffInMinutes < 60) {
+    return `${diffInMinutes}m ago`
+  } else {
+    const hours = Math.floor(diffInMinutes / 60)
+    const minutes = diffInMinutes % 60
+    return `${hours}h${minutes}m ago`
+  }
+}
+
+// Add getInitials helper function
+const getInitials = (name: string | null): string => {
+  if (!name) return ''
+  return name
+    .split(' ')
+    .map(part => part[0])
+    .join('')
+    .toUpperCase()
+}
+
+// Add getStepStatus function
+const getStepStatus = (job: Job, step: keyof JobSteps): { color: string; text: string } => {
+  const stepData = job.steps[step]
+  if (!stepData.lastUpdated) return { color: 'gray', text: 'Not Started' }
+  
+  const now = new Date()
+  const lastUpdated = new Date(stepData.lastUpdated)
+  const hoursElapsed = (now.getTime() - lastUpdated.getTime()) / (1000 * 60 * 60)
+  
+  if (stepData.progress === 100) return { color: 'green', text: 'Complete' }
+  if (hoursElapsed <= 1) return { color: 'green', text: '< 1h' }
+  if (hoursElapsed <= 2) return { color: 'yellow', text: '1-2h' }
+  return { color: 'red', text: '> 2h' }
+}
+
+// Pagination
+const currentPage = ref(1)
+const itemsPerPage = 9
+
+const totalPages = computed(() => Math.ceil(currentJobs.value.length / itemsPerPage))
+
+const paginatedJobs = computed(() => {
+  const start = (currentPage.value - 1) * itemsPerPage
+  const end = start + itemsPerPage
+  return currentJobs.value.slice(start, end)
+})
+
+const nextPage = () => {
+  if (currentPage.value < totalPages.value) {
+    currentPage.value++
+  }
+}
+
+const prevPage = () => {
+  if (currentPage.value > 1) {
+    currentPage.value--
+  }
+}
+
+// Add new computed properties for queue status
+const queueStatus = computed(() => {
+  // Count jobs with delays
+  const delayedJobs = currentJobs.value.filter(job => {
+    const stepData = job.steps[job.currentStep]
+    if (!stepData.lastUpdated) return false
+    
+    const now = new Date()
+    const lastUpdated = new Date(stepData.lastUpdated)
+    const hoursElapsed = (now.getTime() - lastUpdated.getTime()) / (1000 * 60 * 60)
+    
+    return hoursElapsed > 2
+  })
+
+  // Calculate queue health
+  const totalJobs = currentJobs.value.length
+  const delayedCount = delayedJobs.length
+  const delayRatio = delayedCount / (totalJobs || 1)
+
+  // Determine status
+  if (delayRatio === 0 && totalJobs < 5) return { text: 'Optimal', color: 'green' }
+  if (delayRatio === 0) return { text: 'Busy', color: 'sky' }
+  if (delayRatio < 0.3) return { text: 'Delayed', color: 'yellow' }
+  return { text: 'Backlogged', color: 'red' }
+})
 </script>
 
 <style scoped>
@@ -245,94 +683,100 @@ const resetScan = () => {
   @apply min-h-screen bg-[#0f1729] text-white;
 }
 
-.grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(280px, 1fr));
-  gap: 2rem;
+.check-in-card-container {
+  position: relative;
+  height: 200px;
+  border-radius: 0.75rem;
+  background: rgba(15, 23, 41, 0.9);
+  padding: 2px;
 }
 
-.card {
-  @apply bg-surface-dark/30 backdrop-blur-md rounded-xl p-6 border border-white/5 relative cursor-pointer transition-all duration-300;
+.rotating-border {
+  position: absolute;
+  inset: 0;
+  border-radius: 0.75rem;
+  border: 2px solid rgba(56, 189, 248, 0.1);
 }
 
-.card::before {
+.rotating-border::before {
   content: '';
-  @apply absolute inset-0 rounded-xl bg-surface-dark/30;
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  background: rgb(56, 189, 248);
+  border-radius: 50%;
+  box-shadow: 
+    0 0 15px rgba(56, 189, 248, 0.8),
+    0 0 30px rgba(56, 189, 248, 0.4);
+  animation: move-node 3s linear infinite;
+  transform-origin: center;
 }
 
-.icon {
-  @apply z-[2] relative table p-2;
+.check-in-card {
+  height: 100%;
+  width: 100%;
+  position: relative;
+  z-index: 1;
+  background: rgba(15, 23, 41, 0.9);
+  border-radius: 0.75rem;
+  @apply flex items-center justify-center cursor-pointer backdrop-blur-sm;
 }
 
-.icon::after {
-  content: '';
-  @apply absolute inset-[4.5px] rounded-full bg-white/5 border border-white/10 backdrop-blur-sm transition-all duration-300;
+@keyframes move-node {
+  0% {
+    left: 0;
+    top: 0;
+    transform: translate(-50%, -50%);
+  }
+  25% {
+    left: 100%;
+    top: 0;
+    transform: translate(-50%, -50%);
+  }
+  50% {
+    left: 100%;
+    top: 100%;
+    transform: translate(-50%, -50%);
+  }
+  75% {
+    left: 0;
+    top: 100%;
+    transform: translate(-50%, -50%);
+  }
+  100% {
+    left: 0;
+    top: 0;
+    transform: translate(-50%, -50%);
+  }
 }
 
-.icon svg {
-  @apply relative z-[1] block w-6 h-6 text-white/70 transition-colors duration-300;
+.jobs-grid {
+  @apply grid grid-cols-3 gap-4 w-full max-w-[1400px] mx-auto px-4;
+  min-height: calc(100vh - 200px);
+  grid-template-rows: repeat(3, 1fr);
 }
 
-.card h4 {
-  @apply z-[2] relative m-0 mt-3 font-semibold text-base text-white;
+.job-card {
+  @apply bg-surface-dark/90 backdrop-blur-sm rounded-xl p-4
+    border-2
+    transition-all duration-300 hover:bg-surface-dark
+    flex flex-col relative;
+  min-height: 0;
 }
 
-.shine {
-  @apply rounded-xl absolute inset-0 z-[1] overflow-hidden opacity-0 transition-opacity duration-500;
+.job-card.empty {
+  @apply opacity-30;
 }
 
-.shine:before {
-  content: '';
-  @apply w-[150%] pb-[150%] rounded-[50%] absolute left-[50%] bottom-[55%] blur-[35px] opacity-10 -translate-x-[50%];
-  background-image: conic-gradient(from 205deg at 50% 50%, rgba(16, 185, 129, 0) 0deg, #10B981 25deg, rgba(52, 211, 153, 0.18) 295deg, rgba(16, 185, 129, 0) 360deg);
+.job-card.recently-created {
+  @apply bg-sky-500/5 border-sky-500/30;
 }
 
-.background {
-  @apply rounded-xl absolute inset-0 overflow-hidden;
-  -webkit-mask-image: radial-gradient(circle at 60% 5%, black 0%, black 15%, transparent 60%);
-  mask-image: radial-gradient(circle at 60% 5%, black 0%, black 15%, transparent 60%);
+.status-badge {
+  @apply px-3 py-1 rounded-full text-sm font-medium;
 }
 
-.tiles {
-  @apply opacity-0 transition-opacity duration-300;
-}
-
-.tile {
-  @apply absolute bg-emerald-500/5;
-  animation-duration: 8s;
-  animation-iteration-count: infinite;
-  opacity: 0;
-}
-
-@keyframes tile {
-  0%, 12.5%, 100% { opacity: 1; }
-  25%, 82.5% { opacity: 0; }
-}
-
-.card:hover {
-  @apply border-white/20 shadow-lg;
-}
-
-.card:hover .icon::after {
-  @apply bg-emerald-500/10 border-emerald-500/20;
-}
-
-.card:hover .icon svg {
-  @apply text-emerald-400;
-}
-
-.card:hover .shine {
-  @apply opacity-100;
-}
-
-.card:hover .tiles {
-  @apply opacity-100 delay-300;
-}
-
-.card:hover .tile {
-  animation-name: tile;
-}
-
+/* Scrollbar Styles */
 .custom-scrollbar {
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
@@ -349,5 +793,69 @@ const resetScan = () => {
 .custom-scrollbar::-webkit-scrollbar-thumb {
   background-color: rgba(255, 255, 255, 0.1);
   border-radius: 3px;
+}
+
+/* Modal Transitions */
+.modal-enter-active,
+.modal-leave-active {
+  transition: all 0.3s ease;
+}
+
+.modal-enter-from,
+.modal-leave-to {
+  opacity: 0;
+  transform: scale(0.95);
+}
+
+.modal-enter-to,
+.modal-leave-from {
+  opacity: 1;
+  transform: scale(1);
+}
+
+/* Remove all mouse glow related styles */
+.mouse-glow-container,
+.mouse-glow-node,
+.background-glow,
+.glow-node {
+  display: none;
+}
+
+/* Keep other styles */
+.kiosk-view {
+  @apply min-h-screen bg-[#0f1729] text-white;
+}
+
+/* Remove tooltip styles */
+.group:hover .tooltip {
+  display: none;
+}
+
+/* Add new styles for pagination buttons */
+button {
+  @apply focus:outline-none focus:ring-2 focus:ring-sky-500/50 focus:ring-offset-2 focus:ring-offset-[#0f1729];
+}
+
+.ekg-line {
+  animation: ekg-pulse 2s ease-in-out infinite;
+  stroke-dasharray: 400;
+  stroke-dashoffset: 400;
+}
+
+@keyframes ekg-pulse {
+  0% {
+    stroke-dashoffset: 400;
+  }
+  50% {
+    stroke-dashoffset: 0;
+  }
+  100% {
+    stroke-dashoffset: -400;
+  }
+}
+
+.status-card {
+  @apply bg-surface-dark/90 backdrop-blur-sm rounded-xl p-4 border-2 border-white/10
+    transition-all duration-300 hover:border-sky-500/50 hover:bg-surface-dark cursor-pointer;
 }
 </style> 

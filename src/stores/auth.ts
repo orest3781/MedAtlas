@@ -1,61 +1,63 @@
 import { defineStore } from 'pinia'
-
-export type UserRole = 'PRODUCTION_TECHNICIAN' | 'LEAD_PRODUCTION_TECHNICIAN' | 'SUPERVISOR' | 'ADMIN'
+import { useRolesStore } from './roles'
+import type { Role, Permission } from './roles'
 
 interface User {
   id: string
   name: string
-  role: UserRole
+  role: Role
   email: string
 }
 
 interface AuthState {
   user: User | null
   isAuthenticated: boolean
-  permissions: UserPermissions
-}
-
-interface UserPermissions {
-  canCreateClient: boolean;
-  canEditClient: boolean;
-  canViewProjects: boolean;
-  canToggleClientStatus: boolean;
 }
 
 export const useAuthStore = defineStore('auth', {
   state: (): AuthState => ({
     user: null,
-    isAuthenticated: false,
-    // Mock user permissions - in real app these would come from backend
-    permissions: {
-      canCreateClient: true,
-      canEditClient: false,
-      canViewProjects: true,
-      canToggleClientStatus: false
-    }
+    isAuthenticated: false
   }),
 
   getters: {
     isAdmin: (state) => state.user?.role === 'ADMIN',
     isSupervisor: (state) => state.user?.role === 'SUPERVISOR',
-    isLeadTechnician: (state) => state.user?.role === 'LEAD_PRODUCTION_TECHNICIAN',
-    isTechnician: (state) => state.user?.role === 'PRODUCTION_TECHNICIAN',
+    isReceiving: (state) => state.user?.role === 'RECEIVING',
+    isProdTechnician: (state) => state.user?.role === 'PROD-TECHNICIAN',
     
     // Permission-based getters
+    hasPermission: (state) => (permission: Permission) => {
+      if (!state.user) return false
+      const rolesStore = useRolesStore()
+      return rolesStore.hasPermission(state.user.role, permission)
+    },
+
+    userRole: (state) => state.user?.role,
+    
+    // Commonly used permission checks
     canAccessReceiving: (state) => {
       if (!state.user) return false
-      return ['PRODUCTION_TECHNICIAN', 'LEAD_PRODUCTION_TECHNICIAN', 'SUPERVISOR', 'ADMIN'].includes(state.user.role)
+      const rolesStore = useRolesStore()
+      return rolesStore.hasPermission(state.user.role, 'access_receiving')
     },
-    canModifyPriority: (state) => {
+
+    canManageQueue: (state) => {
       if (!state.user) return false
-      return ['LEAD_PRODUCTION_TECHNICIAN', 'SUPERVISOR', 'ADMIN'].includes(state.user.role)
+      const rolesStore = useRolesStore()
+      return rolesStore.hasPermission(state.user.role, 'manage_queue')
     },
-    canAccessReports: (state) => {
+
+    canAccessAdmin: (state) => {
       if (!state.user) return false
-      return ['SUPERVISOR', 'ADMIN'].includes(state.user.role)
+      const rolesStore = useRolesStore()
+      return rolesStore.hasPermission(state.user.role, 'access_admin')
     },
-    hasPermission: (state) => (permission: keyof UserPermissions) => {
-      return state.permissions[permission]
+
+    userPermissions: (state) => {
+      if (!state.user) return []
+      const rolesStore = useRolesStore()
+      return rolesStore.getRolePermissions(state.user.role)
     }
   },
 
@@ -75,16 +77,16 @@ export const useAuthStore = defineStore('auth', {
           role: 'SUPERVISOR',
           email: 'supervisor@example.com'
         },
-        lead: {
+        receiving: {
           id: '3',
-          name: 'Lead Technician',
-          role: 'LEAD_PRODUCTION_TECHNICIAN',
-          email: 'lead@example.com'
+          name: 'Receiving User',
+          role: 'RECEIVING',
+          email: 'receiving@example.com'
         },
         tech: {
           id: '4',
-          name: 'Production Technician',
-          role: 'PRODUCTION_TECHNICIAN',
+          name: 'Production Tech',
+          role: 'PROD-TECHNICIAN',
           email: 'tech@example.com'
         }
       }

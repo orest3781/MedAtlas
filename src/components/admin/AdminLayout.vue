@@ -138,7 +138,8 @@ import {
   ClockIcon,
   ArrowsRightLeftIcon,
   DocumentTextIcon,
-  DocumentChartBarIcon
+  DocumentChartBarIcon,
+  ShieldCheckIcon
 } from '@heroicons/vue/24/outline'
 
 const route = useRoute()
@@ -146,6 +147,7 @@ const mobileMenuOpen = ref(false)
 
 const navigationItems = [
   { name: 'Users', path: '/admin/users', icon: UsersIcon },
+  { name: 'Roles', path: '/admin/roles', icon: ShieldCheckIcon },
   { name: 'Clients', path: '/admin/clients', icon: BuildingOfficeIcon },
   { name: 'Projects', path: '/admin/projects', icon: FolderIcon },
   { name: 'Workflows', path: '/admin/workflows', icon: ArrowsRightLeftIcon },
