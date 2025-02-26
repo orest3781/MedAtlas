@@ -5,8 +5,8 @@
     <!-- Main Content -->
     <div class="p-6 board-gradient">
       <!-- 4 Column Grid with 4:3 Cards -->
-      <div class="grid grid-cols-4 gap-6">
-        <TransitionGroup name="job" tag="div" class="grid grid-cols-4 gap-6 col-span-4">
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+        <TransitionGroup name="job" tag="div" class="contents">
           <div v-for="job in activeJobs" :key="job.id" 
                :class="[
                  'relative bg-[#1e293b] rounded-lg overflow-hidden transition-all duration-500 border-2',
@@ -17,29 +17,29 @@
                  job.status === 'Completed' ? 'border-success/40 hover:border-success/60' :
                  'border-white/10 hover:border-white/20'
                ]">
-            <!-- Card Content -->
+            
             <div class="h-full p-4 flex flex-col">
               <!-- Header Section -->
               <div class="flex items-center justify-between mb-2">
-                <span class="text-white/60 text-xs font-medium">{{ job.clientName }}</span>
-                <span :class="getStatusClass(job.status)" class="text-xs px-2 py-0.5 rounded-full">
+                <span class="text-white/60 text-xs font-medium truncate max-w-[70%]">{{ job.clientName }}</span>
+                <span :class="getStatusClass(job.status)" class="text-xs px-2 py-0.5 rounded-full shrink-0">
                   {{ job.status }}
                 </span>
               </div>
-              <div class="text-white font-medium mb-1">{{ job.projectName }}</div>
-              <div class="text-white/60 text-xs mb-3">{{ job.jobId }}</div>
+              <div class="text-white font-medium mb-1 truncate">{{ job.projectName }}</div>
+              <div class="text-white/60 text-xs mb-3 font-mono truncate">{{ job.jobId }}</div>
               
               <!-- Step Progress Bars -->
-              <div class="space-y-2 mb-3">
+              <div class="space-y-2 mb-3 flex-grow">
                 <div v-for="(step, index) in workflowSteps" :key="index" class="flex items-center gap-2">
-                  <div class="w-16 text-white/60 text-[10px] font-medium">{{ step }}</div>
+                  <div class="w-16 text-white/60 text-[10px] font-medium shrink-0">{{ step }}</div>
                   <template v-if="shouldShowProgress(job.steps[step], index, job.steps)">
-                    <div class="flex-1 bg-white/5 rounded-full h-1">
+                    <div class="flex-1 bg-white/5 rounded-full h-1 min-w-[50px]">
                       <div class="h-1 rounded-full" 
                            :class="getProgressBarColor(job.steps[step])"
                            :style="{ width: job.steps[step].progress + '%' }"></div>
                     </div>
-                    <div class="w-8 text-right text-white/40 text-[10px]">
+                    <div class="w-8 text-right text-white/40 text-[10px] shrink-0">
                       <template v-if="job.steps[step].progress === 100">
                         <span class="text-success">✓</span>
                       </template>
@@ -104,10 +104,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useJobStore } from '../stores/jobs'
-import type { Job } from '../types'
+import type { Job, StepName } from '@/types/database'
 import AppHeader from '../components/AppHeader.vue'
 
 const jobStore = useJobStore()
@@ -120,7 +120,7 @@ const currentDate = ref(new Date().toLocaleDateString('en-US', {
   day: 'numeric'
 }))
 
-const workflowSteps = ['PREP', 'SCAN', 'QC', 'INDEX', 'REPREP']
+const workflowSteps: StepName[] = ['PREP', 'SCAN', 'QC', 'INDEX', 'REPREP']
 
 const getInitials = (name: string): string => {
   return name.split(' ').map(n => n[0]).join('')
@@ -128,31 +128,30 @@ const getInitials = (name: string): string => {
 
 const getStatusClass = (status: string): string => {
   switch (status) {
-    case 'Urgent':
-      return 'status-urgent'
-    case 'In Progress':
-      return 'status-in-progress'
-    case 'On Hold':
-      return 'status-on-hold'
-    case 'Completed':
-      return 'status-completed'
+    case 'pending':
+      return 'text-white/60 bg-white/10'
+    case 'in_progress':
+      return 'text-primary bg-primary/20'
+    case 'on_hold':
+      return 'text-warning bg-warning/20'
+    case 'completed':
+      return 'text-success bg-success/20'
     default:
       return 'text-white/60 bg-white/10'
   }
 }
 
-const formatElapsedTime = (timestamp: string | null): string => {
-  if (!timestamp) return ''
+const formatElapsedTime = (timestamp: string): string => {
   const now = new Date()
   const updated = new Date(timestamp)
   const diffInMinutes = Math.floor((now.getTime() - updated.getTime()) / (1000 * 60))
   
   if (diffInMinutes < 60) {
-    return `${diffInMinutes}m ago`
+    return `${diffInMinutes}m`
   } else {
     const hours = Math.floor(diffInMinutes / 60)
     const minutes = diffInMinutes % 60
-    return `${hours}h${minutes}m ago`
+    return `${hours}h${minutes}m`
   }
 }
 
@@ -166,33 +165,6 @@ const getProgressBarColor = (step: { progress: number, lastUpdated: string | nul
   if (hoursElapsed <= 1) return 'bg-success'
   if (hoursElapsed <= 2) return 'bg-warning'
   return 'bg-error'
-}
-
-const getTodayAt = (hour: number, minute: number = 0) => {
-  const date = new Date()
-  date.setHours(hour, minute, 0, 0)
-  return date.toISOString()
-}
-
-const getCurrentHour = () => {
-  return new Date().getHours()
-}
-
-const getRecentTimestamp = () => {
-  const now = new Date()
-  const hour = now.getHours()
-  const minute = now.getMinutes()
-  return getTodayAt(hour, minute)
-}
-
-const getRandomMinutes = (max: number = 59) => {
-  return Math.floor(Math.random() * max)
-}
-
-const getTimestampWithinRange = (hoursAgo: number) => {
-  const now = new Date()
-  now.setHours(now.getHours() - hoursAgo, getRandomMinutes())
-  return now.toISOString()
 }
 
 const shouldShowProgress = (step: any, index: number, allSteps: any): boolean => {
@@ -217,408 +189,13 @@ const completeJob = (jobId: number) => {
   jobStore.completeJob(jobId)
 }
 
-const activeProjects = computed(() => {
-  return clients.value.reduce((count, client) => {
-    return count + client.projects.length
-  }, 0)
-})
-
-const onHoldCount = computed(() => {
-  return activeJobs.value.filter(job => job.status === 'On Hold').length
-})
-
-const onHoldProjectsCount = computed(() => {
-  return new Set(activeJobs.value
-    .filter(job => job.status === 'On Hold')
-    .map(job => job.projectId)).size
-})
-
-// Mock data (replace with actual data from your store)
-const clients = ref<Client[]>([
-  {
-    id: 'C0001',
-    name: 'MedFirst Healthcare',
-    hasUrgent: true,
-    totalBoxes: 45,
-    projects: [
-      {
-        id: 'C0001P001',
-        name: 'Patient Records 2023',
-        sla: '24h',
-        deadline: '2024-03-20',
-        shipments: generateShipments(45, true)
-      }
-    ]
-  },
-  {
-    id: 'C0002',
-    name: 'Wellness Partners Group',
-    hasUrgent: false,
-    totalBoxes: 23,
-    projects: [
-      {
-        id: 'C0002P001',
-        name: 'Insurance Claims Q1',
-        sla: '48h',
-        deadline: '2024-03-25',
-        shipments: generateShipments(12)
-      },
-      {
-        id: 'C0002P002',
-        name: 'Staff Records Update',
-        sla: '72h',
-        deadline: '2024-03-28',
-        shipments: generateShipments(11)
-      }
-    ]
-  },
-  {
-    id: 'C0003',
-    name: 'Vitality Medical Center',
-    hasUrgent: true,
-    totalBoxes: 67,
-    projects: [
-      {
-        id: 'C0003P001',
-        name: 'Emergency Records',
-        sla: '24h',
-        deadline: '2024-03-19',
-        shipments: generateShipments(35, true)
-      },
-      {
-        id: 'C0003P002',
-        name: 'Radiology Archives',
-        sla: '48h',
-        deadline: '2024-03-22',
-        shipments: generateShipments(32)
-      }
-    ]
-  },
-  {
-    id: 'C0004',
-    name: 'LifeCare Solutions',
-    hasUrgent: false,
-    totalBoxes: 15,
-    projects: [
-      {
-        id: 'C0004P001',
-        name: 'Annual Compliance',
-        sla: '72h',
-        deadline: '2024-03-30',
-        shipments: generateShipments(15)
-      }
-    ]
-  },
-  {
-    id: 'C0005',
-    name: 'Healing Hands Hospital',
-    hasUrgent: true,
-    totalBoxes: 78,
-    projects: [
-      {
-        id: 'C0005P001',
-        name: 'Surgery Records 2023',
-        sla: '24h',
-        deadline: '2024-03-21',
-        shipments: generateShipments(40, true)
-      },
-      {
-        id: 'C0005P002',
-        name: 'Patient Discharge Files',
-        sla: '48h',
-        deadline: '2024-03-23',
-        shipments: generateShipments(38)
-      }
-    ]
-  },
-  {
-    id: 'C0006',
-    name: 'CarePlus Network',
-    hasUrgent: false,
-    totalBoxes: 34,
-    projects: [
-      {
-        id: 'C0006P001',
-        name: 'Provider Documentation',
-        sla: '48h',
-        deadline: '2024-03-24',
-        shipments: generateShipments(34)
-      }
-    ]
-  },
-  {
-    id: 'C0007',
-    name: 'Serenity Health Services',
-    hasUrgent: true,
-    totalBoxes: 56,
-    projects: [
-      {
-        id: 'C0007P001',
-        name: 'Mental Health Records',
-        sla: '24h',
-        deadline: '2024-03-20',
-        shipments: generateShipments(30, true)
-      },
-      {
-        id: 'C0007P002',
-        name: 'Outpatient Files',
-        sla: '72h',
-        deadline: '2024-03-25',
-        shipments: generateShipments(26)
-      }
-    ]
-  },
-  {
-    id: 'C0008',
-    name: 'Guardian Medical Group',
-    hasUrgent: false,
-    totalBoxes: 42,
-    projects: [
-      {
-        id: 'C0008P001',
-        name: 'Family Practice Records',
-        sla: '48h',
-        deadline: '2024-03-22',
-        shipments: generateShipments(42)
-      }
-    ]
-  },
-  {
-    id: 'C0009',
-    name: 'Pinnacle Healthcare',
-    hasUrgent: true,
-    totalBoxes: 65,
-    projects: [
-      {
-        id: 'C0009P001',
-        name: 'Urgent Care Files',
-        sla: '24h',
-        deadline: '2024-03-19',
-        shipments: generateShipments(35, true)
-      },
-      {
-        id: 'C0009P002',
-        name: 'Administrative Records',
-        sla: '72h',
-        deadline: '2024-03-26',
-        shipments: generateShipments(30)
-      }
-    ]
-  },
-  {
-    id: 'C0010',
-    name: 'Harmony Health Alliance',
-    hasUrgent: false,
-    totalBoxes: 28,
-    projects: [
-      {
-        id: 'C0010P001',
-        name: 'Patient Charts Q1',
-        sla: '48h',
-        deadline: '2024-03-23',
-        shipments: generateShipments(28)
-      }
-    ]
-  },
-  {
-    id: 'C0011',
-    name: 'Evergreen Medical Center',
-    hasUrgent: true,
-    totalBoxes: 72,
-    projects: [
-      {
-        id: 'C0011P001',
-        name: 'Emergency Department',
-        sla: '24h',
-        deadline: '2024-03-20',
-        shipments: generateShipments(40, true)
-      },
-      {
-        id: 'C0011P002',
-        name: 'Pediatrics Division',
-        sla: '48h',
-        deadline: '2024-03-24',
-        shipments: generateShipments(32)
-      }
-    ]
-  },
-  {
-    id: 'C0012',
-    name: 'Unity Healthcare Partners',
-    hasUrgent: false,
-    totalBoxes: 19,
-    projects: [
-      {
-        id: 'C0012P001',
-        name: 'Quality Assurance Review',
-        sla: '72h',
-        deadline: '2024-03-28',
-        shipments: generateShipments(19)
-      }
-    ]
-  },
-  {
-    id: 'C0013',
-    name: 'Coastal Wellness Center',
-    hasUrgent: true,
-    totalBoxes: 48,
-    projects: [
-      {
-        id: 'C0013P001',
-        name: 'Patient Records Update',
-        sla: '24h',
-        deadline: '2024-03-21',
-        shipments: generateShipments(25, true)
-      },
-      {
-        id: 'C0013P002',
-        name: 'Insurance Processing',
-        sla: '48h',
-        deadline: '2024-03-25',
-        shipments: generateShipments(23)
-      }
-    ]
-  },
-  {
-    id: 'C0014',
-    name: 'Precision Medical Group',
-    hasUrgent: false,
-    totalBoxes: 31,
-    projects: [
-      {
-        id: 'C0014P001',
-        name: 'Laboratory Records',
-        sla: '48h',
-        deadline: '2024-03-23',
-        shipments: generateShipments(31)
-      }
-    ]
-  },
-  {
-    id: 'C0015',
-    name: 'Summit Health Associates',
-    hasUrgent: true,
-    totalBoxes: 58,
-    projects: [
-      {
-        id: 'C0015P001',
-        name: 'Cardiology Department',
-        sla: '24h',
-        deadline: '2024-03-20',
-        shipments: generateShipments(30, true)
-      },
-      {
-        id: 'C0015P002',
-        name: 'Outpatient Services',
-        sla: '72h',
-        deadline: '2024-03-27',
-        shipments: generateShipments(28)
-      }
-    ]
-  },
-  {
-    id: 'C0016',
-    name: 'Riverside Medical Center',
-    hasUrgent: false,
-    totalBoxes: 25,
-    projects: [
-      {
-        id: 'C0016P001',
-        name: 'General Practice Files',
-        sla: '48h',
-        deadline: '2024-03-24',
-        shipments: generateShipments(25)
-      }
-    ]
-  },
-  {
-    id: 'C0017',
-    name: 'Advanced Care Solutions',
-    hasUrgent: true,
-    totalBoxes: 63,
-    projects: [
-      {
-        id: 'C0017P001',
-        name: 'Specialist Records',
-        sla: '24h',
-        deadline: '2024-03-19',
-        shipments: generateShipments(35, true)
-      },
-      {
-        id: 'C0017P002',
-        name: 'Administrative Files',
-        sla: '48h',
-        deadline: '2024-03-23',
-        shipments: generateShipments(28)
-      }
-    ]
-  },
-  {
-    id: 'C0018',
-    name: 'Pacific Health Network',
-    hasUrgent: false,
-    totalBoxes: 37,
-    projects: [
-      {
-        id: 'C0018P001',
-        name: 'Quarterly Compliance',
-        sla: '72h',
-        deadline: '2024-03-29',
-        shipments: generateShipments(37)
-      }
-    ]
-  },
-  {
-    id: 'C0019',
-    name: 'Integrated Medical Systems',
-    hasUrgent: true,
-    totalBoxes: 52,
-    projects: [
-      {
-        id: 'C0019P001',
-        name: 'Digital Conversion',
-        sla: '24h',
-        deadline: '2024-03-20',
-        shipments: generateShipments(28, true)
-      },
-      {
-        id: 'C0019P002',
-        name: 'Archive Processing',
-        sla: '48h',
-        deadline: '2024-03-24',
-        shipments: generateShipments(24)
-      }
-    ]
-  },
-  {
-    id: 'C0020',
-    name: 'Cornerstone Health Partners',
-    hasUrgent: false,
-    totalBoxes: 44,
-    projects: [
-      {
-        id: 'C0020P001',
-        name: 'Medical Records Audit',
-        sla: '48h',
-        deadline: '2024-03-25',
-        shipments: generateShipments(44)
-      }
-    ]
+onMounted(async () => {
+  try {
+    await jobStore.fetchJobs()
+  } catch (error) {
+    console.error('Error fetching jobs:', error)
   }
-])
-
-function generateShipments(count: number, hasUrgent: boolean = false): Shipment[] {
-  const shipments: Shipment[] = []
-  for (let i = 1; i <= count; i++) {
-    shipments.push({
-      id: `B${String(i).padStart(5, '0')}`,
-      boxType: Math.random() > 0.3 ? 'Standard' : 'Long',
-      receivedAt: new Date(Date.now() - Math.random() * 86400000).toISOString(),
-      isUrgent: hasUrgent && i <= Math.ceil(count * 0.3) // 30% of boxes in urgent projects are marked urgent
-    })
-  }
-  return shipments
-}
+})
 </script>
 
 <style scoped>

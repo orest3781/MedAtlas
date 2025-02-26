@@ -8,7 +8,15 @@ export default defineConfig({
   plugins: [
     vue(),
     electron({
-      entry: 'electron/main.js'
+      entry: 'electron/main.js',
+      vite: {
+        build: {
+          outDir: 'dist-electron',
+          rollupOptions: {
+            external: ['electron', 'electron-store', 'sqlite3']
+          }
+        }
+      }
     })
   ],
   resolve: {
@@ -19,15 +27,24 @@ export default defineConfig({
   base: process.env.ELECTRON ? './' : '/',
   server: {
     port: 5173,
-    host: true
+    strictPort: true,
+    host: true,
+    watch: {
+      usePolling: true,
+      interval: 1000,
+    },
+    hmr: {
+      overlay: true,
+      timeout: 30000,
+    }
   },
+  clearScreen: false,
   build: {
+    sourcemap: true,
+    minify: process.env.NODE_ENV === 'production',
     outDir: 'dist',
-    assetsDir: '.',
     rollupOptions: {
-      output: {
-        format: 'cjs'
-      }
+      external: ['electron']
     }
   }
 }) 

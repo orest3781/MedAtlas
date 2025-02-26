@@ -1,108 +1,134 @@
 import { defineStore } from 'pinia'
+import { ref, computed } from 'vue'
+import type { User } from '@/types/database'
 import { useRolesStore } from './roles'
 import type { Role, Permission } from './roles'
 
-interface User {
-  id: string
-  name: string
-  role: Role
-  email: string
-}
+export const useAuthStore = defineStore('auth', () => {
+  const user = ref<User | null>(null)
+  const token = ref<string | null>(null)
+  const error = ref<string | null>(null)
+  const isLoading = ref(false)
 
-interface AuthState {
-  user: User | null
-  isAuthenticated: boolean
-}
+  // Getters
+  const isAuthenticated = computed(() => !!user.value && !!token.value)
+  
+  const isAdmin = computed(() => user.value?.role === 'ADMIN')
+  
+  const canAccessReceiving = computed(() => {
+    if (!user.value) return false
+    return ['ADMIN', 'SUPERVISOR', 'RECEIVING'].includes(user.value.role)
+  })
+  
+  const canAccessQueue = computed(() => {
+    if (!user.value) return false
+    return ['ADMIN', 'SUPERVISOR', 'PROD-TECHNICIAN'].includes(user.value.role)
+  })
 
-export const useAuthStore = defineStore('auth', {
-  state: (): AuthState => ({
-    user: null,
-    isAuthenticated: false
-  }),
-
-  getters: {
-    isAdmin: (state) => state.user?.role === 'ADMIN',
-    isSupervisor: (state) => state.user?.role === 'SUPERVISOR',
-    isReceiving: (state) => state.user?.role === 'RECEIVING',
-    isProdTechnician: (state) => state.user?.role === 'PROD-TECHNICIAN',
+  // Actions
+  const login = async (email: string, password: string) => {
+    isLoading.value = true
+    error.value = null
     
-    // Permission-based getters
-    hasPermission: (state) => (permission: Permission) => {
-      if (!state.user) return false
-      const rolesStore = useRolesStore()
-      return rolesStore.hasPermission(state.user.role, permission)
-    },
+    try {
+      const response = await window.api.login({ email, password })
+      user.value = response.user
+      token.value = response.token
+      return response
+    } catch (err) {
+      error.value = err instanceof Error ? err.message : 'Failed to login'
+      throw error.value
+    } finally {
+      isLoading.value = false
+    }
+  }
 
-    userRole: (state) => state.user?.role,
+  const logout = async () => {
+    try {
+      await window.api.logout()
+      user.value = null
+      token.value = null
+      error.value = null
+    } catch (err) {
+      console.error('Logout error:', err)
+    }
+  }
+
+  const checkAuth = async () => {
+    if (!token.value) return false
     
-    // Commonly used permission checks
-    canAccessReceiving: (state) => {
-      if (!state.user) return false
-      const rolesStore = useRolesStore()
-      return rolesStore.hasPermission(state.user.role, 'access_receiving')
-    },
-
-    canManageQueue: (state) => {
-      if (!state.user) return false
-      const rolesStore = useRolesStore()
-      return rolesStore.hasPermission(state.user.role, 'manage_queue')
-    },
-
-    canAccessAdmin: (state) => {
-      if (!state.user) return false
-      const rolesStore = useRolesStore()
-      return rolesStore.hasPermission(state.user.role, 'access_admin')
-    },
-
-    userPermissions: (state) => {
-      if (!state.user) return []
-      const rolesStore = useRolesStore()
-      return rolesStore.getRolePermissions(state.user.role)
+    isLoading.value = true
+    error.value = null
+    
+    try {
+      const response = await window.api.checkAuth(token.value)
+      user.value = response.user
+      return true
+    } catch (err) {
+      error.value = err instanceof Error ? err.message : 'Authentication failed'
+      user.value = null
+      token.value = null
+      return false
+    } finally {
+      isLoading.value = false
     }
-  },
+  }
 
-  actions: {
-    async login(username: string, password: string) {
-      // Mock login - replace with actual API call
-      const mockUsers: Record<string, User> = {
-        admin: {
-          id: '1',
-          name: 'Admin User',
-          role: 'ADMIN',
-          email: 'admin@example.com'
-        },
-        supervisor: {
-          id: '2',
-          name: 'Supervisor User',
-          role: 'SUPERVISOR',
-          email: 'supervisor@example.com'
-        },
-        receiving: {
-          id: '3',
-          name: 'Receiving User',
-          role: 'RECEIVING',
-          email: 'receiving@example.com'
-        },
-        tech: {
-          id: '4',
-          name: 'Production Tech',
-          role: 'PROD-TECHNICIAN',
-          email: 'tech@example.com'
-        }
-      }
+  const isSupervisor = computed(() => user.value?.role === 'SUPERVISOR')
+  const isReceiving = computed(() => user.value?.role === 'RECEIVING')
+  const isProdTechnician = computed(() => user.value?.role === 'PROD-TECHNICIAN')
+  
+  // Permission-based getters
+  const hasPermission = (permission: Permission) => {
+    if (!user.value) return false
+    const rolesStore = useRolesStore()
+    return rolesStore.hasPermission(user.value.role, permission)
+  }
 
-      const user = mockUsers[username]
-      if (user && password === 'password') {
-        this.user = user
-        this.isAuthenticated = true
-        return true
-      }
-      throw new Error('Invalid credentials')
-    },
+  const userRole = computed(() => user.value?.role)
+  
+  // Commonly used permission checks
+  const canManageQueue = computed(() => {
+    if (!user.value) return false
+    const rolesStore = useRolesStore()
+    return rolesStore.hasPermission(user.value.role, 'manage_queue')
+  })
 
-    logout() {
-      this.user = null
-      this.isAuthenticated = false
-    }
+  const canAccessAdmin = computed(() => {
+    if (!user.value) return false
+    const rolesStore = useRolesStore()
+    return rolesStore.hasPermission(user.value.role, 'access_admin')
+  })
+
+  const userPermissions = computed(() => {
+    if (!user.value) return []
+    const rolesStore = useRolesStore()
+    return rolesStore.getRolePermissions(user.value.role)
+  })
+
+  return {
+    // State
+    user,
+    token,
+    error,
+    isLoading,
+    
+    // Getters
+    isAuthenticated,
+    isAdmin,
+    isSupervisor,
+    isReceiving,
+    isProdTechnician,
+    hasPermission,
+    userRole,
+    canAccessReceiving,
+    canManageQueue,
+    canAccessAdmin,
+    userPermissions,
+    
+    // Actions
+    login,
+    logout,
+    checkAuth
   }
 }) 

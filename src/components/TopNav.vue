@@ -34,9 +34,9 @@
           </div>
         </div>
         <div class="ml-4 flex items-center border-l border-white/10 pl-4">
-          <div class="flex flex-col">
-            <span class="text-sm font-medium text-white/70">{{ formattedTime }}</span>
-            <span class="text-xs text-white/50">{{ formattedDate }}</span>
+          <div class="flex flex-col min-w-[140px]">
+            <span class="text-sm font-medium text-white/70 truncate">{{ formattedTime }}</span>
+            <span class="text-xs text-white/50 truncate">{{ formattedDate }}</span>
           </div>
         </div>
       </div>
@@ -87,10 +87,7 @@
       </div>
 
       <!-- User Profile (Right-aligned) -->
-      <div 
-        v-if="!$route.path.includes('receiving') && ($route.path === '/' || $route.path === '/queue')"
-        class="flex items-center justify-end flex-1"
-      >
+      <div class="flex items-center justify-end flex-1">
         <div class="flex items-center space-x-2">
           <div :class="['h-8 w-8 rounded-full ring-2 ring-white/10 flex items-center justify-center', avatarStyle]">
             <span class="text-white text-sm font-medium">{{ userInitials }}</span>
@@ -101,11 +98,6 @@
           </div>
         </div>
       </div>
-      <!-- Spacer div when right nav is hidden -->
-      <div 
-        v-else 
-        class="flex-1"
-      ></div>
     </div>
   </div>
 </template>
@@ -133,7 +125,6 @@ const formattedTime = computed(() => {
   return new Intl.DateTimeFormat('en-US', {
     hour: '2-digit',
     minute: '2-digit',
-    second: '2-digit',
     hour12: true
   }).format(currentTime.value)
 })
@@ -162,26 +153,43 @@ onUnmounted(() => {
 })
 
 const userDisplayName = computed(() => {
-  return authStore.user?.name || 'Guest'
+  return authStore.user?.name || 'Admin User'
 })
 
-// Role-based access control
-const hasAccess = (feature: string) => {
-  const role = authStore.user?.role
-  
-  switch (role) {
-    case 'ADMIN':
-      return true // Admin has access to everything
-    case 'SUPERVISOR':
-      return ['DASHBOARD', 'QUEUE', 'RECEIVING'].includes(feature)
-    case 'LEAD_PRODUCTION_TECHNICIAN':
-      return ['DASHBOARD', 'QUEUE'].includes(feature)
-    case 'PRODUCTION_TECHNICIAN':
-      return ['DASHBOARD', 'QUEUE'].includes(feature)
+const isActive = (path: string) => route.path === path
+
+const hasAccess = (feature: string): boolean => {
+  if (!authStore.isAuthenticated) return false
+
+  switch (feature) {
+    case 'RECEIVING':
+      return authStore.canAccessReceiving
+    case 'QUEUE':
+      return authStore.canAccessQueue
+    case 'DASHBOARD':
+      return true
     default:
       return false
   }
 }
+
+const navItems = computed(() => [
+  {
+    name: 'Dashboard',
+    path: '/',
+    feature: 'DASHBOARD'
+  },
+  {
+    name: 'Receiving',
+    path: '/receiving',
+    feature: 'RECEIVING'
+  },
+  {
+    name: 'Queue',
+    path: '/queue',
+    feature: 'QUEUE'
+  }
+].filter(item => hasAccess(item.feature)))
 
 const avatarStyle = computed(() => {
   switch (authStore.user?.role) {
@@ -199,7 +207,7 @@ const avatarStyle = computed(() => {
 })
 
 const userInitials = computed(() => {
-  if (!authStore.user?.name) return 'G'
+  if (!authStore.user?.name) return 'AU'
   const names = authStore.user.name.split(' ')
   if (names.length >= 2) {
     return `${names[0][0]}${names[1][0]}`.toUpperCase()

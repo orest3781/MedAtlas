@@ -13,6 +13,7 @@
 - **Role-based Access Control**: Secure access management for different user roles
 - **Modern UI/UX**: Glass-morphism design with responsive layouts
 - **Real-time Updates**: Live job status and employee tracking
+- **Robust Error Handling**: Comprehensive error tracking, reporting, and recovery
 
 ## 🚀 Getting Started
 
@@ -80,6 +81,60 @@ src/
 - `npm run preview` - Preview production build
 - `npm run lint` - Run ESLint
 - `npm run type-check` - Run TypeScript checks
+
+### Error Handling System
+
+MedAtlas implements a comprehensive error handling system across both the Electron main process and the Vue renderer process:
+
+#### Main Process Error Handling
+
+- **Centralized Error Service**: All errors are captured, processed, and logged through the `errorHandler` service.
+- **Structured Error Types**: Custom `AppError` class with error codes for better categorization and debugging.
+- **Error Codes**: Standardized error codes for database, authentication, IPC, and general errors.
+- **Persistent Logging**: Errors are logged to both console and file for later analysis.
+- **Global Process Handlers**: Catches uncaught exceptions and unhandled promise rejections.
+
+```javascript
+// Example of error handling in the main process
+try {
+  // Some operation
+} catch (error) {
+  errorHandler.handleError(error, 'database', { 
+    action: 'initialize', 
+    connectionString: '(redacted)' 
+  })
+}
+```
+
+#### Renderer Process Error Handling
+
+- **Vue Composable**: `useErrorHandler` composable for consistent error handling across components.
+- **IPC Integration**: Errors can be reported to the main process for centralized logging.
+- **NotificationSystem**: Visual error notifications with automatic dismissal.
+- **Recovery Options**: Graceful recovery options for non-fatal errors.
+
+```typescript
+// Example of using the error handler in a Vue component
+const { handleError } = useErrorHandler()
+
+const doSomething = async () => {
+  try {
+    await api.performAction()
+  } catch (err) {
+    handleError(err, { 
+      showNotification: true,
+      reportToMain: true
+    })
+  }
+}
+```
+
+#### Error Communication
+
+- **IPC Channel**: Dedicated IPC channel for error reporting between processes.
+- **Serialization**: Errors are properly serialized when passed between processes.
+- **Context Preservation**: Error context is maintained across process boundaries.
+- **User Feedback**: Appropriate error messages shown to users based on error severity.
 
 ### Coding Standards
 

@@ -148,8 +148,7 @@ const mobileMenuOpen = ref(false)
 const navigationItems = [
   { name: 'Users', path: '/admin/users', icon: UsersIcon },
   { name: 'Roles', path: '/admin/roles', icon: ShieldCheckIcon },
-  { name: 'Clients', path: '/admin/clients', icon: BuildingOfficeIcon },
-  { name: 'Projects', path: '/admin/projects', icon: FolderIcon },
+  { name: 'Clients & Projects', path: '/admin/client-projects', icon: BuildingOfficeIcon },
   { name: 'Workflows', path: '/admin/workflows', icon: ArrowsRightLeftIcon },
   { name: 'Templates', path: '/admin/templates', icon: DocumentDuplicateIcon },
   { name: 'SLA', path: '/admin/sla', icon: ClockIcon },
@@ -177,10 +176,8 @@ const currentPageDescription = computed(() => {
       return 'Configure system-wide settings and preferences.'
     case '/admin/users':
       return 'Manage user accounts, roles, and permissions.'
-    case '/admin/clients':
-      return 'Manage client organizations and their projects.'
-    case '/admin/projects':
-      return 'Manage and track project progress.'
+    case '/admin/client-projects':
+      return 'Manage clients and their associated projects in one place.'
     case '/admin/workflows':
       return 'Configure workflow templates and processes.'
     case '/admin/templates':

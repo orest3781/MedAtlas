@@ -1,88 +1,102 @@
 import { ref } from 'vue'
-import type { Shipment } from '@/types/database'
+
+export interface ShipmentData {
+  clientId: number
+  projectId: number
+  boxCount: number
+  priority: 'normal' | 'urgent' | 'rush'
+  carrier?: string
+  trackingNumber?: string
+  notes?: string
+}
+
+export interface Shipment extends ShipmentData {
+  id: string
+  clientName: string
+  projectName: string
+  status: 'pending' | 'processing' | 'completed'
+  createdAt: string
+  updatedAt: string
+}
 
 export function useShipments() {
-  const shipments = ref<Shipment[]>([])
-  const loading = ref(false)
+  const isLoading = ref(false)
   const error = ref<string | null>(null)
 
-  // Load all shipments
-  const loadShipments = async () => {
+  const createShipment = async (data: ShipmentData): Promise<Shipment> => {
     try {
-      loading.value = true
-      shipments.value = await window.api.getShipments()
-    } catch (err) {
-      error.value = 'Failed to load shipments'
-      console.error(err)
-    } finally {
-      loading.value = false
-    }
-  }
+      isLoading.value = true
+      error.value = null
 
-  // Get shipment by tracking number
-  const getShipmentByTracking = async (trackingNumber: string) => {
-    try {
-      loading.value = true
-      const result = shipments.value.find(s => s.tracking_number === trackingNumber)
-      if (result) return result
-
-      // If not in local state, load all shipments and try again
-      await loadShipments()
-      return shipments.value.find(s => s.tracking_number === trackingNumber)
+      const result = await window.api.createShipment(data)
+      return result.data
     } catch (err) {
-      error.value = 'Failed to find shipment'
-      console.error(err)
-      return null
-    } finally {
-      loading.value = false
-    }
-  }
-
-  // Create a new shipment
-  const createShipment = async (shipmentData: Partial<Shipment>) => {
-    try {
-      loading.value = true
-      const shipment = await window.api.createShipment(shipmentData)
-      shipments.value.unshift(shipment)
-      return shipment
-    } catch (err) {
-      error.value = 'Failed to create shipment'
-      console.error(err)
+      error.value = err instanceof Error ? err.message : 'An unexpected error occurred'
       throw err
     } finally {
-      loading.value = false
+      isLoading.value = false
     }
   }
 
-  // Update shipment status
-  const updateShipmentStatus = async (id: string, status: Shipment['status']) => {
+  const getShipments = async (filters?: {
+    status?: string
+    search?: string
+    startDate?: string
+    endDate?: string
+  }): Promise<Shipment[]> => {
     try {
-      loading.value = true
-      const updatedShipment = await window.api.updateShipment(id, { status })
-      
-      // Update in local state
-      const index = shipments.value.findIndex(s => s.id === id)
-      if (index !== -1) {
-        shipments.value[index] = updatedShipment
-      }
-      
-      return updatedShipment
+      isLoading.value = true
+      error.value = null
+
+      const result = await window.api.listShipments(filters)
+      return result.data
     } catch (err) {
-      error.value = 'Failed to update shipment status'
-      console.error(err)
+      error.value = err instanceof Error ? err.message : 'An unexpected error occurred'
       throw err
     } finally {
-      loading.value = false
+      isLoading.value = false
+    }
+  }
+
+  const updateShipmentStatus = async (
+    shipmentId: string,
+    status: Shipment['status']
+  ): Promise<Shipment> => {
+    try {
+      isLoading.value = true
+      error.value = null
+
+      const result = await window.api.updateShipmentStatus(shipmentId, status)
+      return result.data
+    } catch (err) {
+      error.value = err instanceof Error ? err.message : 'An unexpected error occurred'
+      throw err
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  const generateLabel = async (shipmentId: string): Promise<string> => {
+    try {
+      isLoading.value = true
+      error.value = null
+
+      const result = await window.api.generateLabel(shipmentId)
+      return result.data.labelUrl
+    } catch (err) {
+      error.value = err instanceof Error ? err.message : 'An unexpected error occurred'
+      throw err
+    } finally {
+      isLoading.value = false
     }
   }
 
   return {
-    shipments,
-    loading,
+    isLoading,
     error,
-    loadShipments,
-    getShipmentByTracking,
     createShipment,
-    updateShipmentStatus
+    getShipments,
+    updateShipmentStatus,
+    generateLabel
   }
 } 

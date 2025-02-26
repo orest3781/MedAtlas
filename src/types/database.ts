@@ -1,80 +1,120 @@
-import { Role } from './roles'
+export type Role = 'ADMIN' | 'SUPERVISOR' | 'OPERATOR' | 'PROD-TECHNICIAN' | 'RECEIVING'
+export type Status = 'active' | 'inactive'
+export type JobStatus = 'pending' | 'in_progress' | 'on_hold' | 'completed'
+export type JobPriority = 'low' | 'medium' | 'high'
+export type StepStatus = 'pending' | 'in_progress' | 'completed'
+export type StepName = 'PREP' | 'SCAN' | 'QC' | 'INDEX' | 'REPREP'
 
 export interface User {
-  id: string
+  id: number
   name: string
   email: string
   role: Role
-  status: 'active' | 'inactive'
+  status: Status
   created_at: string
   last_login: string | null
 }
 
 export interface Client {
-  id: string
+  id: number
   name: string
   contact_name: string | null
   email: string | null
   phone: string | null
-  status: 'active' | 'inactive'
+  status: Status
   created_at: string
 }
 
 export interface Project {
-  id: string
-  client_id: string
+  id: number
+  client_id: number
   name: string
   description: string | null
-  status: 'active' | 'inactive'
+  status: Status
   sla_hours: number | null
   created_at: string
-  client_name?: string
-  client_contact_name?: string
+}
+
+export interface ShipmentData {
+  clientId: number
+  projectId: number
+  boxCount: number
+  priority: string
+  carrier: string
+  trackingNumber: string
+  notes: string
 }
 
 export interface Shipment {
   id: string
-  project_id: string
-  tracking_number: string | null
-  status: 'pending' | 'in_progress' | 'completed'
-  box_count: number
-  created_at: string
-}
-
-export interface Job {
-  id: string
-  shipment_id: string
-  operator_id: string
-  status: 'in_progress' | 'completed'
-  current_step: JobStep['step_name']
-  started_at: string
-  completed_at: string | null
-  tracking_number?: string
-  box_count?: number
-  project_name?: string
-  client_name?: string
-  steps?: JobStep[]
+  clientId: number
+  clientName: string
+  projectId: number
+  projectName: string
+  boxCount: number
+  priority: string
+  status: string
+  carrier: string
+  trackingNumber: string
+  notes: string
+  createdAt: string
+  updatedAt: string
 }
 
 export interface JobStep {
   id: string
-  job_id: string
-  step_name: 'PREP' | 'SCAN' | 'QC' | 'INDEX' | 'REPREP'
-  operator_id: string | null
-  progress: number
-  started_at: string | null
-  completed_at: string | null
+  name: string
+  order: number
+  status: StepStatus
+  operatorId?: number
+  startTime?: string
+  endTime?: string
+}
+
+export interface Job {
+  id: string
+  clientId: number
+  clientName: string
+  projectId: number
+  projectName: string
+  status: JobStatus
+  priority: JobPriority
+  steps: JobStep[]
+  startTime: string
+  dueDate: string
+  createdAt: string
+  updatedAt: string
 }
 
 export interface AuditLog {
-  id: string
-  user_id: string | null
+  id: number
+  user_id: number
   action: string
   entity_type: string
-  entity_id: string | null
+  entity_id: number
   details: string
   created_at: string
-  user_name?: string
+  user_name?: string // Joined field
+}
+
+export interface RolePermissions {
+  canCreateUser: boolean
+  canEditUser: boolean
+  canDeleteUser: boolean
+  canViewUsers: boolean
+  canCreateClient: boolean
+  canEditClient: boolean
+  canDeleteClient: boolean
+  canViewClients: boolean
+  canCreateProject: boolean
+  canEditProject: boolean
+  canDeleteProject: boolean
+  canViewProjects: boolean
+  canManageJobs: boolean
+  canViewJobs: boolean
+  canViewReports: boolean
+  canManageSettings: boolean
+  canAccessReceiving: boolean
 }
 
 export interface DatabaseStats {

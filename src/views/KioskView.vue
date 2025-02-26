@@ -73,7 +73,7 @@
               <div class="flex items-center justify-between">
                 <div class="space-y-1">
                   <div class="text-white/60 text-sm">Total Active Jobs</div>
-                  <div class="text-2xl font-bold text-white">{{ currentJobs.length }}</div>
+                  <div class="text-2xl font-bold text-white">{{ activeJobs.length }}</div>
                 </div>
                 <div class="w-12 h-12 rounded-xl bg-sky-500/10 flex items-center justify-center group-hover:bg-sky-500/20 transition-colors">
                   <div class="w-6 h-6 border-2 border-sky-400 rounded-lg"></div>
@@ -86,7 +86,7 @@
               <div class="flex items-center justify-between">
                 <div class="space-y-1">
                   <div class="text-white/60 text-sm">Avg Processing Time</div>
-                  <div class="text-2xl font-bold text-white">1.5h</div>
+                  <div class="text-2xl font-bold text-white">{{ averageProcessingTime.toFixed(1) }}h</div>
                 </div>
                 <div class="w-12 h-12 rounded-xl bg-sky-500/10 flex items-center justify-center group-hover:bg-sky-500/20 transition-colors">
                   <div class="w-6 h-6 border-2 border-sky-400 rounded-full flex items-center justify-center">
@@ -101,7 +101,7 @@
               <div class="flex items-center justify-between">
                 <div class="space-y-1">
                   <div class="text-white/60 text-sm">Completed Today</div>
-                  <div class="text-2xl font-bold text-white">24</div>
+                  <div class="text-2xl font-bold text-white">{{ completedJobsToday }}</div>
                 </div>
                 <div class="w-12 h-12 rounded-xl bg-green-500/10 flex items-center justify-center group-hover:bg-green-500/20 transition-colors">
                   <div class="w-6 h-6 border-2 border-green-400 rounded-lg flex items-center justify-center">
@@ -191,32 +191,32 @@
                   <div class="space-y-4">
                     <div class="flex justify-between items-center">
                       <span :class="['status-badge', 
-                        job.status === 'In Progress' ? 'bg-sky-500/20 text-sky-400' : 'bg-yellow-500/20 text-yellow-400']"
+                        job.status === 'in_progress' ? 'bg-sky-500/20 text-sky-400' : 'bg-yellow-500/20 text-yellow-400']"
                       >
-                        {{ job.status }}
+                        {{ formatStatus(job.status) }}
                       </span>
                       <!-- Time Status Badge -->
-                      <span v-if="job.steps[job.currentStep].lastUpdated"
+                      <span v-if="job.current_step"
                             :class="[
                               'status-badge text-sm',
                               {
-                                'bg-green-500/20 text-green-400': getStepStatus(job, job.currentStep).color === 'green',
-                                'bg-yellow-500/20 text-yellow-400': getStepStatus(job, job.currentStep).color === 'yellow',
-                                'bg-red-500/20 text-red-400': getStepStatus(job, job.currentStep).color === 'red'
+                                'bg-green-500/20 text-green-400': getStepStatus(job).color === 'green',
+                                'bg-yellow-500/20 text-yellow-400': getStepStatus(job).color === 'yellow',
+                                'bg-red-500/20 text-red-400': getStepStatus(job).color === 'red'
                               }
                             ]"
                       >
-                        {{ getStepStatus(job, job.currentStep).text }}
+                        {{ getStepStatus(job).text }}
                       </span>
                     </div>
                     <div>
-                      <div class="font-medium text-white text-xl">Shipment {{ job.shipmentId }}</div>
-                      <div class="text-white/60">{{ job.steps[job.currentStep].operator || job.employeeId }}</div>
+                      <div class="font-medium text-white text-xl">Shipment {{ job.shipment_id }}</div>
+                      <div class="text-white/60">{{ job.operator_id }}</div>
                     </div>
                   </div>
 
                   <!-- Start Time -->
-                  <div class="text-4xl font-bold text-white/80 mb-4">Started: {{ job.startTime }}</div>
+                  <div class="text-4xl font-bold text-white/80 mb-4">Started: {{ formatDate(job.started_at) }}</div>
 
                   <!-- Progress Steps -->
                   <div class="flex items-center gap-2">
@@ -225,18 +225,18 @@
                         <div class="flex items-center justify-between mb-1">
                           <div class="flex items-center gap-2">
                             <div class="text-white/60 text-[10px] font-medium">{{ step }}</div>
-                            <div v-if="job.steps[step].operator" 
+                            <div v-if="getStepOperator(job, step)" 
                                  class="text-white/40 text-[10px] px-1 py-0.5 bg-white/5 rounded">
-                              {{ getInitials(job.steps[step].operator) }}
+                              {{ getInitials(getStepOperator(job, step)) }}
                             </div>
                           </div>
-                          <div v-if="job.steps[step].progress === 100" 
+                          <div v-if="getStepProgress(job, step) === 100" 
                                class="text-green-500">
                             <CheckIcon class="w-3 h-3" />
                           </div>
-                          <div v-else-if="job.steps[step].lastUpdated" 
+                          <div v-else-if="getStepProgress(job, step) > 0" 
                                class="text-white/40 text-[10px]">
-                            {{ job.steps[step].progress }}%
+                            {{ getStepProgress(job, step) }}%
                           </div>
                         </div>
                         <div class="bg-white/5 rounded-full h-1">
@@ -358,13 +358,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed } from '@vue/runtime-core'
+import { ref, onMounted, onUnmounted, computed, type Ref } from 'vue'
 import { CheckIcon } from '@heroicons/vue/24/solid'
 import { ChevronLeftIcon, ChevronRightIcon } from '@heroicons/vue/24/outline'
 import KioskBackground from '../components/KioskBackground.vue'
-import { useJobs } from '@/composables/useJobs'
-import { useShipments } from '@/composables/useShipments'
-import type { Job } from '@/types/database'
+import { useJobs } from '../composables/useJobs'
+import { useShipments } from '../composables/useShipments'
+import type { Job } from '../types/database'
 
 // Time display
 const currentTime = ref(new Date().toLocaleString())
@@ -411,67 +411,67 @@ const recentlyCreatedJob = ref<Job | null>(null)
 const DEFAULT_EMPLOYEE_ID = 'EMP123'
 const DEFAULT_SHIPMENT_ID = 'SHIP456'
 
-// Update type definitions
-interface StepData {
-  progress: number;
-  lastUpdated: string | null;
-  operator?: string | null;
-}
-
-interface JobSteps {
-  PREP: StepData;
-  SCAN: StepData;
-  QC: StepData;
-  INDEX: StepData;
-  REPREP: StepData;
-}
-
-interface Job {
-  id: number;
-  shipmentId: string;
-  employeeId: string;
-  startTime: string;
-  status: string;
-  steps: JobSteps;
-  currentStep: keyof JobSteps;
-}
-
-// Card hover state
-const isOverCard = ref(false)
-
 // Workflow steps
 const workflowSteps = ['PREP', 'SCAN', 'QC', 'INDEX', 'REPREP']
 
-// Update type annotations in functions
-const getStepProgress = (job: Job, step: keyof JobSteps): number => {
-  return job.steps[step].progress
+// Helper functions
+const formatDate = (date: string) => {
+  return new Date(date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }
 
-const getProgressBarColor = (job: Job, step: keyof JobSteps): string => {
-  const stepData = job.steps[step]
-  if (!stepData.lastUpdated) return 'bg-white/20'
+const formatStatus = (status: string): string => {
+  return status.split('_').map((word: string) => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')
+}
+
+const getStepProgress = (job: Job, step: string): number => {
+  const jobStep = job.steps?.find((s: { step_name: string }) => s.step_name === step)
+  return jobStep?.progress || 0
+}
+
+const getStepOperator = (job: Job, step: string): string | null => {
+  const jobStep = job.steps?.find((s: { step_name: string }) => s.step_name === step)
+  return jobStep?.operator_id || null
+}
+
+const getProgressBarColor = (job: Job, step: string): string => {
+  const jobStep = job.steps?.find((s: { step_name: string }) => s.step_name === step)
+  if (!jobStep?.started_at) return 'bg-white/20'
   
   const now = new Date()
-  const lastUpdated = new Date(stepData.lastUpdated)
-  const hoursElapsed = (now.getTime() - lastUpdated.getTime()) / (1000 * 60 * 60)
+  const started = new Date(jobStep.started_at)
+  const hoursElapsed = (now.getTime() - started.getTime()) / (1000 * 60 * 60)
   
-  if (stepData.progress === 100) return 'bg-green-500'
+  if (jobStep.progress === 100) return 'bg-green-500'
   if (hoursElapsed <= 1) return 'bg-green-500'
   if (hoursElapsed <= 2) return 'bg-yellow-500'
   return 'bg-red-500'
 }
 
 const getCardBorderColor = (job: Job): string => {
-  const currentStepData = job.steps[job.currentStep]
-  if (!currentStepData.lastUpdated) return 'border-white/10'
+  const currentStep = job.steps?.find(s => s.step_name === job.current_step)
+  if (!currentStep?.started_at) return 'border-white/10'
   
   const now = new Date()
-  const lastUpdated = new Date(currentStepData.lastUpdated)
-  const hoursElapsed = (now.getTime() - lastUpdated.getTime()) / (1000 * 60 * 60)
+  const started = new Date(currentStep.started_at)
+  const hoursElapsed = (now.getTime() - started.getTime()) / (1000 * 60 * 60)
   
   if (hoursElapsed <= 1) return 'border-green-500/50'
   if (hoursElapsed <= 2) return 'border-yellow-500/50'
   return 'border-red-500/50'
+}
+
+const getStepStatus = (job: Job): { color: string; text: string } => {
+  const currentStep = job.steps?.find(s => s.step_name === job.current_step)
+  if (!currentStep?.started_at) return { color: 'gray', text: 'Not Started' }
+  
+  const now = new Date()
+  const started = new Date(currentStep.started_at)
+  const hoursElapsed = (now.getTime() - started.getTime()) / (1000 * 60 * 60)
+  
+  if (currentStep.progress === 100) return { color: 'green', text: 'Complete' }
+  if (hoursElapsed <= 1) return { color: 'green', text: '< 1h' }
+  if (hoursElapsed <= 2) return { color: 'yellow', text: '1-2h' }
+  return { color: 'red', text: '> 2h' }
 }
 
 // Modal controls
@@ -566,35 +566,6 @@ const handleMouseMove = () => {
   // Empty function but kept to prevent template errors
 }
 
-const handleCardEnter = () => {
-  isOverCard.value = true
-}
-
-const handleCardLeave = () => {
-  isOverCard.value = false
-}
-
-// Clean up on unmount
-onUnmounted(() => {
-  // Empty function but kept to prevent template errors
-})
-
-// Add formatElapsedTime function
-const formatElapsedTime = (timestamp: string | null): string => {
-  if (!timestamp) return 'Not started'
-  const now = new Date()
-  const updated = new Date(timestamp)
-  const diffInMinutes = Math.floor((now.getTime() - updated.getTime()) / (1000 * 60))
-  
-  if (diffInMinutes < 60) {
-    return `${diffInMinutes}m ago`
-  } else {
-    const hours = Math.floor(diffInMinutes / 60)
-    const minutes = diffInMinutes % 60
-    return `${hours}h${minutes}m ago`
-  }
-}
-
 // Add getInitials helper function
 const getInitials = (name: string | null): string => {
   if (!name) return ''
@@ -605,31 +576,16 @@ const getInitials = (name: string | null): string => {
     .toUpperCase()
 }
 
-// Add getStepStatus function
-const getStepStatus = (job: Job, step: keyof JobSteps): { color: string; text: string } => {
-  const stepData = job.steps[step]
-  if (!stepData.lastUpdated) return { color: 'gray', text: 'Not Started' }
-  
-  const now = new Date()
-  const lastUpdated = new Date(stepData.lastUpdated)
-  const hoursElapsed = (now.getTime() - lastUpdated.getTime()) / (1000 * 60 * 60)
-  
-  if (stepData.progress === 100) return { color: 'green', text: 'Complete' }
-  if (hoursElapsed <= 1) return { color: 'green', text: '< 1h' }
-  if (hoursElapsed <= 2) return { color: 'yellow', text: '1-2h' }
-  return { color: 'red', text: '> 2h' }
-}
-
 // Pagination
 const currentPage = ref(1)
 const itemsPerPage = 9
 
-const totalPages = computed(() => Math.ceil(currentJobs.length / itemsPerPage))
+const totalPages = computed(() => Math.ceil(currentJobs.value.length / itemsPerPage))
 
 const paginatedJobs = computed(() => {
   const start = (currentPage.value - 1) * itemsPerPage
   const end = start + itemsPerPage
-  return currentJobs.slice(start, end)
+  return currentJobs.value.slice(start, end)
 })
 
 const nextPage = () => {

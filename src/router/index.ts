@@ -1,13 +1,17 @@
-import { createRouter, createWebHistory } from 'vue-router'
+import { createRouter, createWebHistory, RouteRecordRaw } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import DashboardView from '../views/DashboardView.vue'
 import QueueView from '../views/QueueView.vue'
-import AdminView from '../views/AdminView.vue'
 import KioskView from '../views/KioskView.vue'
 import DemoView from '../views/DemoView.vue'
-import { RouteRecordRaw } from 'vue-router'
 
 const routes: RouteRecordRaw[] = [
+  {
+    path: '/login',
+    name: 'login',
+    component: () => import('../views/LoginView.vue'),
+    meta: { requiresAuth: false }
+  },
   {
     path: '/',
     name: 'dashboard',
@@ -17,7 +21,11 @@ const routes: RouteRecordRaw[] = [
   {
     path: '/queue',
     name: 'queue',
-    component: QueueView
+    component: QueueView,
+    meta: {
+      requiresAuth: true,
+      requiredPermission: 'canAccessQueue'
+    }
   },
   {
     path: '/receiving',
@@ -40,7 +48,7 @@ const routes: RouteRecordRaw[] = [
   {
     path: '/admin',
     name: 'admin',
-    component: AdminView,
+    component: () => import('../views/admin/AdminView.vue'),
     redirect: '/admin/users',
     meta: {
       requiresAdmin: true
@@ -57,14 +65,9 @@ const routes: RouteRecordRaw[] = [
         component: () => import('../views/admin/RolesView.vue')
       },
       {
-        path: 'clients',
-        name: 'admin-clients',
-        component: () => import('../views/admin/ClientsView.vue')
-      },
-      {
-        path: 'projects',
-        name: 'admin-projects',
-        component: () => import('../views/admin/ProjectsView.vue')
+        path: 'client-projects',
+        name: 'admin-client-projects',
+        component: () => import('../views/admin/ClientProjectsView.vue')
       },
       {
         path: 'workflows',
@@ -99,11 +102,6 @@ const routes: RouteRecordRaw[] = [
     ]
   },
   {
-    path: '/login',
-    name: 'login',
-    component: () => import('../views/LoginView.vue')
-  },
-  {
     path: '/reports',
     name: 'reports',
     component: () => import('../views/ReportsView.vue'),
@@ -128,10 +126,22 @@ const router = createRouter({
 router.beforeEach((to, from, next) => {
   const authStore = useAuthStore()
   
+  // If going to login page and already authenticated, redirect to dashboard
+  if (to.path === '/login' && authStore.isAuthenticated) {
+    next({ name: 'dashboard' })
+    return
+  }
+
   // Check if the route requires authentication
   if (to.matched.some(record => record.meta.requiresAuth)) {
     if (!authStore.isAuthenticated) {
       next({ name: 'login', query: { redirect: to.fullPath } })
+      return
+    }
+
+    // Admin users bypass all permission checks
+    if (authStore.user?.role === 'ADMIN') {
+      next()
       return
     }
 

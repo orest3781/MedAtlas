@@ -73,6 +73,12 @@ const route = useRoute()
 const authStore = useAuthStore()
 
 const userHasAccess = (roles: string[]) => {
-  return roles.includes(authStore.userRole)
+  if (!authStore.user) return false
+  
+  if (roles.includes('admin') && authStore.isAdmin) return true
+  if (roles.includes('supervisor') && authStore.hasPermission('canManageJobs')) return true
+  if (roles.includes('production_technician') && authStore.hasPermission('canAccessReceiving')) return true
+  
+  return false
 }
 </script> 

@@ -1,31 +1,48 @@
 <template>
   <div class="min-h-screen bg-[#0f1729] flex">
+    <!-- Error Display -->
+    <div v-if="error" class="fixed inset-0 flex items-center justify-center z-50 bg-[#0f1729]">
+      <div class="bg-surface-dark p-6 rounded-lg border border-error/20 max-w-md">
+        <h3 class="text-error text-lg font-medium mb-2">Application Error</h3>
+        <p class="text-white/70 mb-4">{{ error.message }}</p>
+        <button 
+          @click="clearError(); window.location.reload()" 
+          class="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
+        >
+          Reload Application
+        </button>
+      </div>
+    </div>
+
+    <!-- NotificationSystem Component -->
+    <NotificationSystem ref="notificationSystem" />
+
     <!-- Left Sidebar - Ready for Delivery -->
     <Transition name="nav">
       <nav v-if="!isAuthPage && !isKioskMode && !isAdminRoute && !isReceivingRoute" 
         :class="[
-          'w-80 fixed left-0 z-10 border-r border-accent/20 bg-[#0f1729] px-2',
+          'w-80 fixed left-0 z-10 border-r border-accent/20 bg-[#0f1729] px-4 py-4',
           !isAuthPage ? 'top-16 h-[calc(100vh-4rem)]' : 'top-0 h-screen'
         ]"
       >
         <!-- Ready for Delivery -->
         <div class="mb-6">
-          <div class="px-2 mb-2 flex items-center justify-between">
+          <div class="px-2 mb-4 flex items-center justify-between">
             <span class="text-[10px] text-white/40 font-medium uppercase tracking-wider">Ready for Delivery</span>
-            <span class="text-[10px] text-success px-1.5 py-0.5 rounded-full bg-success/10">{{ completedJobs.length }}</span>
+            <span class="text-[10px] text-success px-2 py-1 rounded-full bg-success/10">{{ completedJobs.length }}</span>
           </div>
           <TransitionGroup 
             name="completed" 
             tag="div" 
-            class="space-y-2 overflow-y-auto max-h-[calc(100vh-8rem)] scrollbar-thin scrollbar-thumb-accent/20 scrollbar-track-surface-darker"
+            class="space-y-3 overflow-y-auto max-h-[calc(100vh-8rem)] scrollbar-thin scrollbar-thumb-accent/20 scrollbar-track-surface-darker px-1"
           >
             <div v-for="job in completedJobs" :key="job.id" 
-                 class="p-3 bg-surface-dark rounded-lg border border-white/10 hover:border-white/20 transition-all duration-200 cursor-pointer">
+                 class="p-4 bg-surface-dark rounded-lg border border-white/10 hover:border-white/20 transition-all duration-200 cursor-pointer">
               <div class="text-sm font-medium text-white/80 truncate">{{ job.clientName }}</div>
               <div class="text-xs text-white/40 truncate">{{ job.projectName }}</div>
               <div class="text-xs text-white/40 font-mono truncate">{{ job.jobId }}</div>
-              <div class="mt-2 flex items-center gap-2">
-                <span class="text-xs text-success bg-success/10 px-2 py-0.5 rounded">Complete</span>
+              <div class="mt-3 flex items-center gap-2">
+                <span class="text-xs text-success bg-success/10 px-2.5 py-1 rounded">Complete</span>
                 <span class="text-xs text-white/40">{{ formatElapsedTime(job.steps.REPREP.lastUpdated) }}</span>
               </div>
             </div>
@@ -48,7 +65,18 @@
       ]">
         <router-view v-slot="{ Component }">
           <transition name="fade" mode="out-in">
-            <component :is="Component" />
+            <Suspense>
+              <template #default>
+                <div class="w-full">
+                  <component :is="Component" />
+                </div>
+              </template>
+              <template #fallback>
+                <div class="flex items-center justify-center h-screen">
+                  <div class="w-12 h-12 border-4 border-primary/20 border-t-primary rounded-full animate-spin"></div>
+                </div>
+              </template>
+            </Suspense>
           </transition>
         </router-view>
       </div>
@@ -103,16 +131,37 @@ import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { useJobStore } from './stores/jobs'
 import { useAuthStore } from './stores/auth'
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, onErrorCaptured, provide } from 'vue'
 import { DocumentDuplicateIcon } from '@heroicons/vue/24/outline'
 import TopNav from './components/TopNav.vue'
+import { useErrorHandler } from './composables/useErrorHandler'
+import NotificationSystem from './components/NotificationSystem.vue'
 
 const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
-
 const jobStore = useJobStore()
+const notificationSystem = ref(null)
+
 const { completedJobs, activeJobs } = storeToRefs(jobStore)
+const { error, handleError, clearError } = useErrorHandler()
+
+// Make error handler available to all components
+provide('errorHandler', { handleError, clearError })
+
+// Enhanced error handling
+onErrorCaptured((e: Error, instance, info) => {
+  console.error(`Global error caught from ${instance?.$options?.name || 'unknown component'}:`, e, info)
+  handleError(e, { 
+    showNotification: true,
+    reportToMain: true,
+    // Don't rethrow as we're handling it here
+    rethrow: false
+  })
+  
+  // Return false to prevent the error from propagating further
+  return false
+})
 
 // Date time handling
 const currentDateTime = ref('')
@@ -133,8 +182,34 @@ const updateDateTime = () => {
 }
 
 onMounted(() => {
-  updateDateTime()
-  timeInterval = window.setInterval(updateDateTime, 1000)
+  try {
+    updateDateTime()
+    timeInterval = window.setInterval(updateDateTime, 1000)
+
+    // Initialize the electron API connection
+    if (window.electronAPI) {
+      console.log('Electron API available')
+      
+      // Test for connectivity with main process
+      window.electronAPI.system.getSystemInfo()
+        .then(info => {
+          console.log('System info:', info)
+        })
+        .catch(err => {
+          handleError(err, { showNotification: true })
+        })
+    }
+
+    // Initialize stores if needed
+    if (!authStore.isAuthenticated && route.path !== '/login') {
+      router.push('/login')
+    }
+  } catch (e) {
+    handleError(e, { 
+      showNotification: true,
+      reportToMain: true
+    })
+  }
 })
 
 onMounted(() => {
@@ -161,11 +236,9 @@ const formatElapsedTime = (timestamp: string): string => {
 
 const isKioskMode = computed(() => route.meta.layout === 'kiosk')
 const isAdminRoute = computed(() => route.path.startsWith('/admin'))
-
 const isAuthPage = computed(() => {
   return route.path === '/login' || route.path === '/signin' || route.path === '/sign-in'
 })
-
 const isReceivingRoute = computed(() => route.path === '/receiving')
 </script>
 

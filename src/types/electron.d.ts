@@ -1,45 +1,53 @@
 import type { User, Client, Project, Shipment, Job, JobStep, AuditLog } from './database'
+import { ShipmentData, Shipment } from '../composables/useShipments'
+
+interface ElectronAPI {
+  invoke(channel: string, ...args: any[]): Promise<any>
+}
 
 declare global {
   interface Window {
+    electron: ElectronAPI
     api: {
       // Auth
-      login: (credentials: { username: string; password: string }) => Promise<User>
+      login: (credentials: { email: string; password: string }) => Promise<any>
+      logout: () => Promise<void>
       
       // Users
-      createUser: (userData: Partial<User>) => Promise<User>
-      getUsers: () => Promise<User[]>
-      updateUser: (id: string, userData: Partial<User>) => Promise<User>
-      deleteUser: (id: string) => Promise<void>
+      getUsers: () => Promise<any[]>
+      createUser: (userData: any) => Promise<any>
+      updateUser: (id: number, userData: any) => Promise<any>
+      archiveUser: (id: number, reason: string) => Promise<any>
+      getArchivedUsers: () => Promise<any[]>
       
       // Clients
-      createClient: (clientData: Partial<Client>) => Promise<Client>
-      getClients: () => Promise<Client[]>
-      updateClient: (id: string, clientData: Partial<Client>) => Promise<Client>
-      deleteClient: (id: string) => Promise<void>
+      getClients: () => Promise<any[]>
+      createClient: (clientData: any) => Promise<any>
+      updateClient: (id: number, clientData: any) => Promise<any>
       
       // Projects
-      createProject: (projectData: Partial<Project>) => Promise<Project>
-      getProjects: () => Promise<Project[]>
-      updateProject: (id: string, projectData: Partial<Project>) => Promise<Project>
-      deleteProject: (id: string) => Promise<void>
-      
-      // Shipments
-      createShipment: (shipmentData: Partial<Shipment>) => Promise<Shipment>
-      getShipments: () => Promise<Shipment[]>
-      updateShipment: (id: string, shipmentData: Partial<Shipment>) => Promise<Shipment>
-      deleteShipment: (id: string) => Promise<void>
+      getProjects: () => Promise<any[]>
+      createProject: (projectData: any) => Promise<any>
       
       // Jobs
-      createJob: (jobData: Partial<Job>) => Promise<Job>
-      getJobs: () => Promise<Job[]>
-      updateJob: (id: string, jobData: Partial<Job>) => Promise<Job>
-      deleteJob: (id: string) => Promise<void>
-      updateJobStep: (jobId: string, stepData: {
-        stepName: JobStep['step_name']
-        progress: number
-        operatorId: string
-      }) => Promise<Job>
+      getJobs: () => Promise<any[]>
+      createJob: (jobData: any) => Promise<any>
+      updateJobStep: (jobId: string, stepData: any) => Promise<any>
+      
+      // System
+      getStats: () => Promise<any>
+      getLogs: (filters: any) => Promise<any[]>
+      
+      // Shipment operations
+      createShipment: (data: ShipmentData) => Promise<{ data: Shipment }>
+      listShipments: (filters?: {
+        status?: string
+        search?: string
+        startDate?: string
+        endDate?: string
+      }) => Promise<{ data: Shipment[] }>
+      updateShipmentStatus: (shipmentId: string, status: string) => Promise<{ data: Shipment }>
+      generateLabel: (shipmentId: string) => Promise<{ data: { labelUrl: string } }>
       
       // Audit Logs
       getAuditLogs: (filters?: {
@@ -64,4 +72,6 @@ declare global {
       restoreDatabase: (backupPath: string) => Promise<void>
     }
   }
-} 
+}
+
+export {} 

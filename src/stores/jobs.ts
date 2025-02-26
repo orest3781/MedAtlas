@@ -1,40 +1,94 @@
 import { defineStore } from 'pinia'
-import type { Job } from '../types'
-import { mockJobs } from './mockData'
+import { ref, computed } from 'vue'
+import type { Job, JobStatus, JobStep } from '@/types/database'
 
-export const useJobStore = defineStore('jobs', {
-  state: () => ({
-    jobs: mockJobs as Job[],
-    recentlyCompleted: null as number | null
-  }),
-  
-  getters: {
-    activeJobs: (state) => state.jobs.filter(job => job.status !== 'Completed'),
-    completedJobs: (state) => state.jobs.filter(job => job.status === 'Completed')
-  },
+export const useJobStore = defineStore('jobs', () => {
+  const jobs = ref<Job[]>([])
+  const error = ref<string | null>(null)
+  const isLoading = ref(false)
 
-  actions: {
-    setJobs(jobs: Job[]) {
-      this.jobs = jobs
-    },
+  // Getters
+  const activeJobs = computed(() => {
+    return jobs.value.filter(job => job.status !== 'completed')
+  })
+
+  const completedJobs = computed(() => {
+    return jobs.value.filter(job => job.status === 'completed')
+  })
+
+  // Actions
+  const setJobs = (newJobs: Job[]) => {
+    jobs.value = newJobs
+  }
+
+  const fetchJobs = async () => {
+    isLoading.value = true
+    error.value = null
     
-    completeJob(jobId: number) {
-      const job = this.jobs.find(j => j.id === jobId)
-      if (job) {
-        // Update all steps to 100% complete
-        Object.keys(job.steps).forEach(step => {
-          job.steps[step].progress = 100
-          job.steps[step].lastUpdated = new Date().toISOString()
-        })
-        job.status = 'Completed'
-        job.currentStep = 'Completed'
-        this.recentlyCompleted = jobId // Track for animation
-        
-        // Reset after animation duration
-        setTimeout(() => {
-          this.recentlyCompleted = null
-        }, 500)
-      }
+    try {
+      const response = await window.api.getJobs()
+      jobs.value = response
+    } catch (err) {
+      error.value = err instanceof Error ? err.message : 'Failed to fetch jobs'
+      throw error.value
+    } finally {
+      isLoading.value = false
     }
+  }
+
+  const updateJobStatus = async (jobId: string, status: JobStatus) => {
+    isLoading.value = true
+    error.value = null
+
+    try {
+      await window.api.updateJobStatus(jobId, status)
+      const jobIndex = jobs.value.findIndex(job => job.id === jobId)
+      if (jobIndex !== -1) {
+        jobs.value[jobIndex].status = status
+      }
+    } catch (err) {
+      error.value = err instanceof Error ? err.message : 'Failed to update job status'
+      throw error.value
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  const updateJobStep = async (jobId: string, stepId: string, status: string) => {
+    isLoading.value = true
+    error.value = null
+
+    try {
+      await window.api.updateJobStep(jobId, stepId, status)
+      const jobIndex = jobs.value.findIndex(job => job.id === jobId)
+      if (jobIndex !== -1) {
+        const stepIndex = jobs.value[jobIndex].steps.findIndex(step => step.id === stepId)
+        if (stepIndex !== -1) {
+          jobs.value[jobIndex].steps[stepIndex].status = status
+        }
+      }
+    } catch (err) {
+      error.value = err instanceof Error ? err.message : 'Failed to update job step'
+      throw error.value
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  return {
+    // State
+    jobs,
+    error,
+    isLoading,
+    
+    // Getters
+    activeJobs,
+    completedJobs,
+    
+    // Actions
+    setJobs,
+    fetchJobs,
+    updateJobStatus,
+    updateJobStep
   }
 }) 

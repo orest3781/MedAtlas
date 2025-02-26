@@ -1,346 +1,281 @@
 <template>
-  <div class="p-6 max-w-7xl mx-auto">
-    <!-- Header Card -->
-    <div class="bg-surface-darker rounded-xl p-6 mb-8 shadow-lg border border-white/10">
-      <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <h2 class="text-2xl font-bold text-white mb-1">Shipment Intake</h2>
-          <p class="text-white/60 text-sm">Process and label incoming document boxes</p>
-        </div>
-        <div class="flex gap-3">
-          <button
-            @click="printLabels"
-            class="px-4 py-2 bg-surface-dark hover:bg-surface-dark/80 text-white rounded-lg transition-all duration-200 flex items-center gap-2"
-          >
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-            </svg>
-            Print Labels
-          </button>
-          <button
-            @click="startNewShipment"
-            class="group bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 px-6 py-2.5 rounded-lg transition-all duration-200 flex items-center gap-3"
-          >
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-            </svg>
-            New Shipment
-          </button>
+  <div class="min-h-screen bg-surface-darker p-6">
+    <div class="max-w-7xl mx-auto">
+      <!-- Header -->
+      <div class="flex items-center justify-between mb-6">
+        <h1 class="text-2xl font-semibold text-white">Shipment Intake</h1>
+        <div class="flex items-center gap-4">
+          <div class="flex items-center gap-2 px-4 py-2 bg-surface-dark rounded-lg">
+            <span class="text-white/60 text-sm">Today's Shipments:</span>
+            <span class="text-white font-medium">{{ todayShipments.length }}</span>
+          </div>
         </div>
       </div>
-    </div>
 
-    <!-- Shipment Form -->
-    <div v-if="showShipmentForm" class="bg-surface-darker rounded-xl p-6 mb-8 shadow-lg border border-white/10">
-      <form @submit.prevent="handleShipmentSubmit" class="space-y-6">
-        <!-- Client and Project Selection -->
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <!-- New Shipment Form -->
+      <div class="bg-surface-dark rounded-lg border border-accent/20 p-6 mb-6">
+        <h2 class="text-lg font-medium text-white mb-4">New Shipment</h2>
+        <form @submit.prevent="handleSubmit" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <!-- Client Selection -->
           <div>
             <label class="block text-sm font-medium text-white/60 mb-2">Client</label>
-            <select
-              v-model="shipmentForm.clientId"
-              required
-              class="w-full px-4 py-2 bg-surface-dark rounded-lg border border-white/10 text-white focus:ring-2 focus:ring-primary focus:border-primary"
-              @change="loadProjects"
-            >
+            <select v-model="form.clientId" 
+              class="w-full bg-surface-darker border border-accent/20 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-primary focus:border-primary">
               <option value="">Select Client</option>
               <option v-for="client in clients" :key="client.id" :value="client.id">
-                {{ client.name }} ({{ client.id }})
+                {{ client.name }}
               </option>
             </select>
           </div>
-          
+
+          <!-- Project Selection -->
           <div>
             <label class="block text-sm font-medium text-white/60 mb-2">Project</label>
-            <select
-              v-model="shipmentForm.projectId"
-              required
-              :disabled="!shipmentForm.clientId"
-              class="w-full px-4 py-2 bg-surface-dark rounded-lg border border-white/10 text-white focus:ring-2 focus:ring-primary focus:border-primary disabled:opacity-50"
-            >
+            <select v-model="form.projectId"
+              class="w-full bg-surface-darker border border-accent/20 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-primary focus:border-primary">
               <option value="">Select Project</option>
-              <option v-for="project in availableProjects" :key="project.id" :value="project.id">
-                {{ project.name }} ({{ project.id }})
+              <option v-for="project in filteredProjects" :key="project.id" :value="project.id">
+                {{ project.name }}
               </option>
             </select>
           </div>
-        </div>
 
-        <!-- Box Information -->
-        <div class="space-y-4">
-          <h3 class="text-lg font-medium text-white">Box Details</h3>
-          
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <label class="block text-sm font-medium text-white/60 mb-2">Box Count</label>
-              <input
-                v-model="shipmentForm.boxCount"
-                type="number"
-                min="1"
-                required
-                class="w-full px-4 py-2 bg-surface-dark rounded-lg border border-white/10 text-white focus:ring-2 focus:ring-primary focus:border-primary"
-              />
-            </div>
-            
-            <div>
-              <label class="block text-sm font-medium text-white/60 mb-2">Box Type</label>
-              <select
-                v-model="shipmentForm.boxType"
-                required
-                class="w-full px-4 py-2 bg-surface-dark rounded-lg border border-white/10 text-white focus:ring-2 focus:ring-primary focus:border-primary"
-              >
-                <option value="standard">Standard</option>
-                <option value="long">Long</option>
-              </select>
-            </div>
-
-            <div>
-              <label class="block text-sm font-medium text-white/60 mb-2">Carrier</label>
-              <select
-                v-model="shipmentForm.carrier"
-                required
-                class="w-full px-4 py-2 bg-surface-dark rounded-lg border border-white/10 text-white focus:ring-2 focus:ring-primary focus:border-primary"
-              >
-                <option value="">Select Carrier</option>
-                <option value="fedex">FedEx</option>
-                <option value="ups">UPS</option>
-                <option value="usps">USPS</option>
-                <option value="dhl">DHL</option>
-                <option value="other">Other</option>
-              </select>
-            </div>
+          <!-- Box Count -->
+          <div>
+            <label class="block text-sm font-medium text-white/60 mb-2">Box Count</label>
+            <input type="number" v-model="form.boxCount" min="1"
+              class="w-full bg-surface-darker border border-accent/20 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-primary focus:border-primary" />
           </div>
 
+          <!-- Priority -->
+          <div>
+            <label class="block text-sm font-medium text-white/60 mb-2">Priority</label>
+            <select v-model="form.priority"
+              class="w-full bg-surface-darker border border-accent/20 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-primary focus:border-primary">
+              <option value="normal">Normal</option>
+              <option value="urgent">Urgent</option>
+              <option value="rush">Rush</option>
+            </select>
+          </div>
+
+          <!-- Carrier -->
+          <div>
+            <label class="block text-sm font-medium text-white/60 mb-2">Carrier</label>
+            <select v-model="form.carrier"
+              class="w-full bg-surface-darker border border-accent/20 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-primary focus:border-primary">
+              <option value="">Select Carrier</option>
+              <option value="fedex">FedEx</option>
+              <option value="ups">UPS</option>
+              <option value="usps">USPS</option>
+              <option value="dhl">DHL</option>
+            </select>
+          </div>
+
+          <!-- Tracking Number -->
           <div>
             <label class="block text-sm font-medium text-white/60 mb-2">Tracking Number</label>
-            <input
-              v-model="shipmentForm.trackingNumber"
-              type="text"
-              class="w-full px-4 py-2 bg-surface-dark rounded-lg border border-white/10 text-white focus:ring-2 focus:ring-primary focus:border-primary"
-              placeholder="Enter tracking number (optional)..."
-            />
+            <input type="text" v-model="form.trackingNumber"
+              class="w-full bg-surface-darker border border-accent/20 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-primary focus:border-primary" />
           </div>
 
-          <div>
+          <!-- Notes -->
+          <div class="md:col-span-2 lg:col-span-3">
             <label class="block text-sm font-medium text-white/60 mb-2">Notes</label>
-            <textarea
-              v-model="shipmentForm.notes"
-              rows="3"
-              class="w-full px-4 py-2 bg-surface-dark rounded-lg border border-white/10 text-white focus:ring-2 focus:ring-primary focus:border-primary"
-              placeholder="Any special handling instructions or additional information..."
-            ></textarea>
+            <textarea v-model="form.notes" rows="3"
+              class="w-full bg-surface-darker border border-accent/20 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-primary focus:border-primary"></textarea>
           </div>
-        </div>
 
-        <div class="flex justify-end gap-3">
-          <button
-            type="button"
-            @click="cancelShipment"
-            class="px-4 py-2 bg-surface-dark hover:bg-surface-dark/80 text-white rounded-lg transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            class="px-6 py-2 bg-primary hover:bg-primary/90 text-white rounded-lg transition-colors"
-          >
-            Generate Labels
-          </button>
-        </div>
-      </form>
-    </div>
-
-    <!-- Recent Shipments -->
-    <div class="bg-surface-darker rounded-xl overflow-hidden shadow-lg border border-white/10">
-      <div class="p-6 border-b border-white/10">
-        <h3 class="text-lg font-medium text-white">Recent Shipments</h3>
+          <!-- Submit Button -->
+          <div class="md:col-span-2 lg:col-span-3">
+            <button type="submit"
+              class="px-6 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              :disabled="isLoading">
+              <template v-if="isLoading">
+                <SpinnerIcon class="w-5 h-5 inline" />
+                Processing...
+              </template>
+              <template v-else>
+                Create Shipment
+              </template>
+            </button>
+          </div>
+        </form>
       </div>
-      <div class="overflow-x-auto">
-        <table class="w-full">
-          <thead>
-            <tr class="bg-surface-dark">
-              <th class="px-6 py-3 text-left text-xs font-medium text-white/40 uppercase">Shipment ID</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-white/40 uppercase">Client</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-white/40 uppercase">Project</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-white/40 uppercase">Boxes</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-white/40 uppercase">Type</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-white/40 uppercase">Carrier</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-white/40 uppercase">Tracking Number</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-white/40 uppercase">Created</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-white/40 uppercase">Actions</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-white/10">
-            <tr v-for="shipment in recentShipments" :key="shipment.id" class="hover:bg-surface-dark/50">
-              <td class="px-6 py-4 whitespace-nowrap text-sm font-mono text-white">{{ shipment.id }}</td>
-              <td class="px-6 py-4 whitespace-nowrap text-sm text-white">{{ shipment.clientName }}</td>
-              <td class="px-6 py-4 whitespace-nowrap text-sm text-white">{{ shipment.projectName }}</td>
-              <td class="px-6 py-4 whitespace-nowrap text-sm text-white">{{ shipment.boxCount }}</td>
-              <td class="px-6 py-4 whitespace-nowrap text-sm text-white capitalize">{{ shipment.boxType }}</td>
-              <td class="px-6 py-4 whitespace-nowrap text-sm text-white">{{ shipment.carrier }}</td>
-              <td class="px-6 py-4 whitespace-nowrap text-sm text-white">{{ shipment.trackingNumber }}</td>
-              <td class="px-6 py-4 whitespace-nowrap text-sm text-white/60">
-                {{ formatDate(shipment.createdAt) }}
-              </td>
-              <td class="px-6 py-4 whitespace-nowrap text-sm text-white">
-                <button
-                  @click="reprintLabels(shipment)"
-                  class="text-primary hover:text-primary/80"
-                >
-                  Reprint Labels
-                </button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+
+      <!-- Recent Shipments -->
+      <div class="bg-surface-dark rounded-lg border border-accent/20 p-6">
+        <h2 class="text-lg font-medium text-white mb-4">Recent Shipments</h2>
+        <div class="overflow-x-auto">
+          <table class="w-full">
+            <thead>
+              <tr class="text-left border-b border-accent/20">
+                <th class="pb-3 text-sm font-medium text-white/60">ID</th>
+                <th class="pb-3 text-sm font-medium text-white/60">Client</th>
+                <th class="pb-3 text-sm font-medium text-white/60">Project</th>
+                <th class="pb-3 text-sm font-medium text-white/60">Boxes</th>
+                <th class="pb-3 text-sm font-medium text-white/60">Priority</th>
+                <th class="pb-3 text-sm font-medium text-white/60">Status</th>
+                <th class="pb-3 text-sm font-medium text-white/60">Created</th>
+                <th class="pb-3 text-sm font-medium text-white/60">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="shipment in shipments" :key="shipment.id"
+                class="border-b border-accent/10 hover:bg-surface-darker transition-colors">
+                <td class="py-3 text-sm text-white font-mono">{{ shipment.id }}</td>
+                <td class="py-3 text-sm text-white">{{ shipment.clientName }}</td>
+                <td class="py-3 text-sm text-white">{{ shipment.projectName }}</td>
+                <td class="py-3 text-sm text-white">{{ shipment.boxCount }}</td>
+                <td class="py-3 text-sm">
+                  <span class="px-2 py-1 text-xs font-medium rounded-full"
+                    :class="getPriorityClass(shipment.priority)">
+                    {{ formatPriority(shipment.priority) }}
+                  </span>
+                </td>
+                <td class="py-3 text-sm">
+                  <span class="px-2 py-1 text-xs font-medium rounded-full"
+                    :class="getStatusClass(shipment.status)">
+                    {{ formatStatus(shipment.status) }}
+                  </span>
+                </td>
+                <td class="py-3 text-sm text-white/60">{{ formatDate(shipment.createdAt) }}</td>
+                <td class="py-3 text-sm">
+                  <button @click="generateLabel(shipment.id)"
+                    class="px-3 py-1 text-xs font-medium text-white bg-primary/20 hover:bg-primary/30 rounded transition-colors">
+                    Generate Label
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
+import { useShipments, type ShipmentData, type Shipment } from '@/composables/useShipments'
+import { useToast } from '@/composables/useToast'
+import SpinnerIcon from '@/components/icons/SpinnerIcon.vue'
 
-interface Client {
-  id: string;
-  name: string;
-}
+const { createShipment, getShipments, generateLabel, isLoading, error } = useShipments()
+const { showToast } = useToast()
 
-interface Project {
-  id: string;
-  clientId: string;
-  name: string;
-}
-
-interface Shipment {
-  id: string;
-  clientId: string;
-  clientName: string;
-  projectId: string;
-  projectName: string;
-  boxCount: number;
-  boxType: 'standard' | 'long';
-  carrier: string;
-  trackingNumber: string;
-  notes?: string;
-  createdAt: string;
-}
-
-// Mock data
-const clients = ref<Client[]>([
-  { id: '0001', name: 'Acme Corp' },
-  { id: '0002', name: 'TechStart Inc' },
-  { id: '0003', name: 'Global Industries' }
-])
-
-const projects = ref<Project[]>([
-  { id: '001', clientId: '0001', name: 'Annual Reports' },
-  { id: '002', clientId: '0001', name: 'HR Documents' },
-  { id: '003', clientId: '0002', name: 'Legal Records' }
-])
-
-const recentShipments = ref<Shipment[]>([
-  {
-    id: 'C0001P001B00001',
-    clientId: '0001',
-    clientName: 'Acme Corp',
-    projectId: '001',
-    projectName: 'Annual Reports',
-    boxCount: 5,
-    boxType: 'standard',
-    carrier: 'FedEx',
-    trackingNumber: '1234567890',
-    createdAt: new Date().toISOString()
-  }
-])
-
-// State
-const showShipmentForm = ref(false)
-const shipmentForm = ref({
-  clientId: '',
-  projectId: '',
+// Form state
+const form = ref<ShipmentData>({
+  clientId: 0,
+  projectId: 0,
   boxCount: 1,
-  boxType: 'standard',
+  priority: 'normal',
   carrier: '',
   trackingNumber: '',
   notes: ''
 })
 
+// Data
+const clients = ref<{ id: number; name: string }[]>([])
+const projects = ref<{ id: number; clientId: number; name: string }[]>([])
+const shipments = ref<Shipment[]>([])
+
 // Computed
-const availableProjects = computed(() => {
-  return projects.value.filter(p => p.clientId === shipmentForm.value.clientId)
+const filteredProjects = computed(() => {
+  if (!form.value.clientId) return []
+  return projects.value.filter(p => p.clientId === form.value.clientId)
+})
+
+const todayShipments = computed(() => {
+  const today = new Date().toISOString().split('T')[0]
+  return shipments.value.filter(s => s.createdAt.startsWith(today))
 })
 
 // Methods
-const startNewShipment = () => {
-  showShipmentForm.value = true
-}
-
-const cancelShipment = () => {
-  showShipmentForm.value = false
-  resetForm()
-}
-
-const loadProjects = () => {
-  shipmentForm.value.projectId = ''
-}
-
-const handleShipmentSubmit = () => {
-  const client = clients.value.find(c => c.id === shipmentForm.value.clientId)
-  const project = projects.value.find(p => p.id === shipmentForm.value.projectId)
-  
-  if (!client || !project) return
-
-  // Generate shipment ID based on format: C0000P000B00000
-  const lastShipment = recentShipments.value[0]
-  const boxNumber = lastShipment ? 
-    String(Number(lastShipment.id.slice(-5)) + 1).padStart(5, '0') : 
-    '00001'
-  
-  const shipmentId = `C${client.id}P${project.id}B${boxNumber}`
-
-  const newShipment: Shipment = {
-    id: shipmentId,
-    clientId: client.id,
-    clientName: client.name,
-    projectId: project.id,
-    projectName: project.name,
-    boxCount: shipmentForm.value.boxCount,
-    boxType: shipmentForm.value.boxType,
-    carrier: shipmentForm.value.carrier,
-    trackingNumber: shipmentForm.value.trackingNumber,
-    notes: shipmentForm.value.notes,
-    createdAt: new Date().toISOString()
+const handleSubmit = async () => {
+  try {
+    const result = await createShipment(form.value)
+    showToast('Shipment created successfully', 'success')
+    // Reset form
+    form.value = {
+      clientId: 0,
+      projectId: 0,
+      boxCount: 1,
+      priority: 'normal',
+      carrier: '',
+      trackingNumber: '',
+      notes: ''
+    }
+    // Refresh shipments list
+    loadShipments()
+  } catch (err) {
+    showToast(error.value || 'Failed to create shipment', 'error')
   }
-
-  recentShipments.value.unshift(newShipment)
-  showShipmentForm.value = false
-  resetForm()
 }
 
-const resetForm = () => {
-  shipmentForm.value = {
-    clientId: '',
-    projectId: '',
-    boxCount: 1,
-    boxType: 'standard',
-    carrier: '',
-    trackingNumber: '',
-    notes: ''
+const loadShipments = async () => {
+  try {
+    const result = await getShipments()
+    shipments.value = result
+  } catch (err) {
+    showToast('Failed to load shipments', 'error')
   }
+}
+
+const handleGenerateLabel = async (shipmentId: string) => {
+  try {
+    const labelUrl = await generateLabel(shipmentId)
+    // Handle the label URL (e.g., open in new window, download, etc.)
+    window.open(labelUrl, '_blank')
+  } catch (err) {
+    showToast('Failed to generate label', 'error')
+  }
+}
+
+const getPriorityClass = (priority: string) => {
+  const classes = {
+    normal: 'bg-white/10 text-white',
+    urgent: 'bg-warning/20 text-warning',
+    rush: 'bg-error/20 text-error'
+  }
+  return classes[priority] || classes.normal
+}
+
+const getStatusClass = (status: string) => {
+  const classes = {
+    pending: 'bg-white/10 text-white',
+    processing: 'bg-primary/20 text-primary',
+    completed: 'bg-success/20 text-success'
+  }
+  return classes[status] || classes.pending
+}
+
+const formatPriority = (priority: string) => {
+  return priority.charAt(0).toUpperCase() + priority.slice(1)
+}
+
+const formatStatus = (status: string) => {
+  return status.charAt(0).toUpperCase() + status.slice(1)
 }
 
 const formatDate = (date: string) => {
   return new Date(date).toLocaleString()
 }
 
-const printLabels = () => {
-  // Implement label printing logic
-  console.log('Printing labels...')
-}
+// Initialize
+onMounted(async () => {
+  try {
+    // Load clients
+    const clientsResult = await window.api.getClients()
+    clients.value = clientsResult
 
-const reprintLabels = (shipment: Shipment) => {
-  // Implement label reprinting logic
-  console.log('Reprinting labels for shipment:', shipment.id)
-}
+    // Load projects
+    const projectsResult = await window.api.getProjects()
+    projects.value = projectsResult
+
+    // Load shipments
+    await loadShipments()
+  } catch (err) {
+    showToast('Failed to load initial data', 'error')
+  }
+})
 </script> 
